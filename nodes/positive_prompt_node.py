@@ -1,0 +1,70 @@
+"""
+All-to-Pipe positive prompt node.
+
+Populates the positive prompt container.
+"""
+
+from typing import Dict, Any, Tuple
+from ..alltopipe_types import Pipe, PositivePrompt
+from ..common.utils import deep_copy_pipe
+
+
+class PositivePromptNode:
+    """
+    Populates the positive prompt container.
+
+    Modifies attributes on Pipe.positive_prompt.
+    Encoding is NOT performed here.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the positive prompt node."""
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls) -> Dict[str, Any]:
+        """
+        Define the input types for this node.
+
+        Returns:
+            Dictionary defining node inputs with feature selector and text input
+        """
+        return {
+            "required": {
+                "pipe": ("PIPE",),
+                "feature": (PositivePrompt.ALLOWED_FEATURES,),
+                "text": ("STRING", {"multiline": True, "default": ""}),
+            }
+        }
+
+    RETURN_TYPES: Tuple[str, ...] = ("PIPE",)
+    RETURN_NAMES: Tuple[str, ...] = ("pipe",)
+    FUNCTION: str = "execute"
+    CATEGORY: str = "all-to-pipe"
+
+    def execute(self, pipe: Pipe, feature: str, text: str) -> Tuple[Pipe]:
+        """
+        Execute the node and populate positive prompts.
+
+        Args:
+            pipe: The input Pipe instance
+            feature: Feature name from ALLOWED_FEATURES
+            text: Positive prompt text
+
+        Returns:
+            Tuple containing the modified Pipe instance
+
+        Raises:
+            ValueError: If feature is not allowed
+        """
+        new_pipe: Pipe = deep_copy_pipe(pipe)
+
+        if new_pipe.positive_prompt is None:
+            new_pipe.positive_prompt = PositivePrompt()
+
+        if feature not in PositivePrompt.ALLOWED_FEATURES:
+            raise ValueError(f"Invalid feature: {feature}")
+
+        setattr(new_pipe.positive_prompt, feature, text)
+
+        return (new_pipe,)
