@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from nodes.image_config_node import ImageConfigNode
-from alltopipe_types import Pipe, ImageConfig
+from ..image_config_node import ImageConfigNode
+from ...alltopipe_types import Pipe, ImageConfig
 
 
 class TestImageConfigNode(unittest.TestCase):
@@ -22,28 +22,30 @@ class TestImageConfigNode(unittest.TestCase):
         self.assertEqual(ImageConfigNode.RETURN_TYPES, ("PIPE",))
         self.assertEqual(ImageConfigNode.RETURN_NAMES, ("pipe",))
         self.assertEqual(ImageConfigNode.FUNCTION, "execute")
-        self.assertEqual(ImageConfigNode.CATEGORY, "All-to-Pipe")
+        self.assertEqual(ImageConfigNode.CATEGORY, "all-to-pipe")
 
     def test_node_has_required_inputs(self):
-        """Test that ImageConfigNode has required inputs."""
-        node = ImageConfigNode()
-        inputs = node.INPUT_TYPES()
-
-        required = inputs.get("required", {})
-        self.assertIn("pipe", required)
-        self.assertIn("width", required)
-        self.assertIn("height", required)
-        self.assertIn("batch_size", required)
-        self.assertIn("noise", required)
-
-    def test_node_optional_color_code(self):
-        """Test that color_code is optional input."""
+        """Test that ImageConfigNode has optional pipe and required config parameters."""
         node = ImageConfigNode()
         inputs = node.INPUT_TYPES()
 
         optional = inputs.get("optional", {})
-        if optional:
-            self.assertIn("color_code", optional)
+        self.assertIn("pipe", optional)
+        
+        required = inputs.get("required", {})
+        self.assertIn("width", required)
+        self.assertIn("height", required)
+        self.assertIn("batch_size", required)
+        self.assertIn("noise", required)
+        self.assertIn("color_code", required)
+
+    def test_node_optional_color_code(self):
+        """Test that color_code is required input."""
+        node = ImageConfigNode()
+        inputs = node.INPUT_TYPES()
+
+        required = inputs.get("required", {})
+        self.assertIn("color_code", required)
 
     def test_node_dimension_inputs(self):
         """Test dimension input specifications."""

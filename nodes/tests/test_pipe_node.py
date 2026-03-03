@@ -18,7 +18,13 @@ class TestPipeNode(unittest.TestCase):
     """Test suite for PipeNode."""
 
     def test_pipe_node_execution(self):
-        """Test PipeNode creates an empty Pipe."""
+        """Test PipeNode creates an empty Pipe and has correct attributes."""
+        node = PipeNode()
+        self.assertEqual(PipeNode.RETURN_TYPES, ("PIPE",))
+        self.assertEqual(PipeNode.RETURN_NAMES, ("pipe",))
+        self.assertEqual(PipeNode.FUNCTION, "execute")
+        self.assertEqual(PipeNode.CATEGORY, "all-to-pipe")
+        
         result = PipeNode.execute()
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 1)

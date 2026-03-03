@@ -11,8 +11,8 @@ import json
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from nodes.export_json_node import ExportJsonNode
-from alltopipe_types import Pipe, Model, Parameters, LoraSpec
+from ..export_json_node import ExportJsonNode
+from ...alltopipe_types import Pipe, Model, Parameters, LoraSpec
 
 
 class TestExportJsonNode(unittest.TestCase):
@@ -21,9 +21,9 @@ class TestExportJsonNode(unittest.TestCase):
     def test_node_class_attributes(self):
         """Test ExportJsonNode class attributes."""
         self.assertEqual(ExportJsonNode.RETURN_TYPES, ("STRING",))
-        self.assertEqual(ExportJsonNode.RETURN_NAMES, ("json_string",))
+        self.assertEqual(ExportJsonNode.RETURN_NAMES, ("json",))
         self.assertEqual(ExportJsonNode.FUNCTION, "execute")
-        self.assertEqual(ExportJsonNode.CATEGORY, "All-to-Pipe")
+        self.assertEqual(ExportJsonNode.CATEGORY, "all-to-pipe")
 
     def test_node_has_required_inputs(self):
         """Test that ExportJsonNode has required inputs."""
@@ -34,7 +34,7 @@ class TestExportJsonNode(unittest.TestCase):
         self.assertIn("pipe", required)
 
     def test_node_returns_valid_json(self):
-        """Test that ExportJsonNode returns valid JSON with new structure."""
+        """Test that ExportJsonNode returns valid JSON with new flat structure."""
         # Create a minimal pipe
         pipe = Pipe(
             model=Model(name="test.safetensors", subfolder="checkpoints"),
@@ -60,18 +60,24 @@ class TestExportJsonNode(unittest.TestCase):
             parsed = json.loads(json_string)
             self.assertIsInstance(parsed, dict)
             
-            # Verify new consolidated structure
-            self.assertIn("pipeline", parsed)
-            pipeline = parsed["pipeline"]
-            self.assertIn("model", pipeline)
-            self.assertIn("prompts", pipeline)
-            self.assertIn("parameters", pipeline)
-            self.assertIn("metadata", pipeline)
+            # Verify new flat consolidated structure
+            # Properties should be at top level, not nested
+            self.assertIn("model", parsed)
+            self.assertIn("model_subfolder", parsed)
+            self.assertIn("steps", parsed)
+            self.assertIn("cfg", parsed)
+            self.assertIn("sampler", parsed)
+            self.assertIn("scheduler", parsed)
+            self.assertIn("seed", parsed)
             
-            # Verify prompts are consolidated
-            prompts = pipeline["prompts"]
-            self.assertIn("positive", prompts)
-            self.assertIn("negative", prompts)
+            # Verify values are correct
+            self.assertEqual(parsed["model"], "test.safetensors")
+            self.assertEqual(parsed["model_subfolder"], "checkpoints")
+            self.assertEqual(parsed["steps"], 20)
+            self.assertEqual(parsed["cfg"], 7.5)
+            self.assertEqual(parsed["sampler"], "euler")
+            self.assertEqual(parsed["scheduler"], "karras")
+            self.assertEqual(parsed["seed"], 12345)
             
         except json.JSONDecodeError:
             self.fail("ExportJsonNode did not return valid JSON")

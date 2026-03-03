@@ -15,7 +15,6 @@ from .nodes.lora_node import LoraNode
 from .nodes.parameters_builder_node import ParametersBuilderNode
 from .nodes.image_config_node import ImageConfigNode
 from .nodes.template_node import TemplateNode
-from .nodes.template_parser_node import TemplateParserNode
 from .nodes.export_node import ExportNode
 from .nodes.export_json_node import ExportJsonNode
 
@@ -29,7 +28,6 @@ NODE_CLASS_MAPPINGS: Dict[str, Type[Any]] = {
     "AllToPipe_Parameters": ParametersBuilderNode,
     "AllToPipe_ImageConfig": ImageConfigNode,
     "AllToPipe_Template": TemplateNode,
-    "AllToPipe_TemplateParser": TemplateParserNode,
     "AllToPipe_SamplerExport": ExportNode,
     "AllToPipe_JsonExport": ExportJsonNode,
 }
@@ -44,7 +42,6 @@ NODE_DISPLAY_NAME_MAPPINGS: Dict[str, str] = {
     "AllToPipe_Parameters": "All-to-Pipe: Parameters",
     "AllToPipe_ImageConfig": "All-to-Pipe: Image Config",
     "AllToPipe_Template": "All-to-Pipe: Template",
-    "AllToPipe_TemplateParser": "All-to-Pipe: Parse Template",
     "AllToPipe_SamplerExport": "All-to-Pipe: Export (Sampler)",
     "AllToPipe_JsonExport": "All-to-Pipe: Export (JSON)",
 }

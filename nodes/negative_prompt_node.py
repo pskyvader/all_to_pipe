@@ -4,7 +4,7 @@ All-to-Pipe negative prompt node.
 Populates the negative prompt container.
 """
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from ..alltopipe_types import Pipe, NegativePrompt
 from ..common.utils import deep_copy_pipe
 
@@ -30,8 +30,10 @@ class NegativePromptNode:
             Dictionary defining node inputs with feature selector and text input
         """
         return {
-            "required": {
+            "optional": {
                 "pipe": ("PIPE",),
+            },
+            "required": {
                 "feature": (NegativePrompt.ALLOWED_FEATURES,),
                 "text": ("STRING", {"multiline": True, "default": ""}),
             }
@@ -42,12 +44,12 @@ class NegativePromptNode:
     FUNCTION: str = "execute"
     CATEGORY: str = "all-to-pipe"
 
-    def execute(self, pipe: Pipe, feature: str, text: str) -> Tuple[Pipe]:
+    def execute(self, pipe: Optional[Pipe] = None, feature: str = None, text: str = None) -> Tuple[Pipe]:
         """
         Execute the node and populate negative prompts.
 
         Args:
-            pipe: The input Pipe instance
+            pipe: Optional Pipe instance (creates new if None)
             feature: Feature name from ALLOWED_FEATURES
             text: Negative prompt text
 
@@ -57,7 +59,7 @@ class NegativePromptNode:
         Raises:
             ValueError: If feature is not allowed
         """
-        new_pipe: Pipe = deep_copy_pipe(pipe)
+        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
 
         if new_pipe.negative_prompt is None:
             new_pipe.negative_prompt = NegativePrompt()

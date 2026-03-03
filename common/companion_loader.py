@@ -7,7 +7,15 @@ Loads and manages JSON companion files for models and LoRAs.
 from typing import Optional, Dict, Any, List, Union
 import json
 import os
+import random
+import logging
+import re
 from dataclasses import dataclass, field
+
+# Setup logging for companion file warnings
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.WARNING)
 
 
 @dataclass
@@ -70,11 +78,18 @@ class CompanionLoader:
             base_path: Base path to models directory
 
         Returns:
-            CompanionFile instance if found, None otherwise
+            CompanionFile instance if found, None otherwise.
+            Logs a warning if file is not found.
         """
-        return CompanionLoader._load_companion_file(
+        result = CompanionLoader._load_companion_file(
             model_name, subfolder, base_path
         )
+        if result is None:
+            logger.warning(
+                f"No companion file found for model '{model_name}' in {subfolder or 'root'}. "
+                f"Expected: {os.path.join(base_path, subfolder or '', f'{model_name}.json')}"
+            )
+        return result
 
     @staticmethod
     def load_lora_companion(
@@ -93,13 +108,20 @@ class CompanionLoader:
             base_path: Base path to loras directory
 
         Returns:
-            CompanionFile instance if found, None otherwise
+            CompanionFile instance if found, None otherwise.
+            Logs a warning if file is not found.
         """
-        return CompanionLoader._load_companion_file(
+        result = CompanionLoader._load_companion_file(
             lora_name, subfolder, base_path
         )
+        if result is None:
+            logger.warning(
+                f"No companion file found for LoRA '{lora_name}' in {subfolder or 'root'}. "
+                f"Expected: {os.path.join(base_path, subfolder or '', f'{lora_name}.json')}"
+            )
+        return result
 
-#TODO: if no companion file is found, print a message as a warning.
+
     @staticmethod
     def _load_companion_file(
         name: str,
@@ -141,37 +163,299 @@ class CompanionLoader:
             # Log error silently, return None
             return None
 
+    @staticmethod
+    def apply_companion_to_parameters(
+        companion: Optional[CompanionFile],
+        steps: int,
+        cfg: float,
+        sampler: str,
+        scheduler: str,
+        seed: int,
+    ) -> tuple[int, float, str, str, int]:
+        """
+        Apply companion file values to generation parameters intelligently.
+        
+        Args:
+            companion: CompanionFile instance (or None)
+            steps: Current steps value
+            cfg: Current cfg value  
+            sampler: Current sampler
+            scheduler: Current scheduler
+            seed: Current seed
+            
+        Returns:
+            Tuple of (new_steps, new_cfg, new_sampler, new_scheduler, new_seed)
+        """
+        if companion is None:
+            return steps, cfg, sampler, scheduler, seed
+        
+        # Apply sampler (single value or choice from list)
+        if companion.sampler:
+            sampler = CompanionLoader._apply_choice_value(
+                companion.sampler, sampler, "sampler"
+            )
+        
+        # Apply steps (numeric type)
+        if companion.steps:
+            steps = CompanionLoader._apply_numeric_value(
+                companion.steps, steps, "steps"
+            )
+        
+        # Apply cfg (numeric type)
+        if companion.cfg:
+            cfg = CompanionLoader._apply_numeric_value(
+                companion.cfg, cfg, "cfg"
+            )
+        
+        # Scheduler (single value or choice from list)
+        if "scheduler" in companion.raw_data:
+            scheduler_data = companion.raw_data["scheduler"]
+            schedulers = scheduler_data if isinstance(scheduler_data, list) else [scheduler_data]
+            scheduler = CompanionLoader._apply_choice_value(
+                schedulers, scheduler, "scheduler"
+            )
+        
+        return steps, cfg, sampler, scheduler, seed
 
-#TODO: group by data type, since they have different ways to modify parameters 
-# steps,cfg ar numeric
-# width and height are size
-# prompts are text
+    @staticmethod
+    def apply_companion_to_image_config(
+        companion: Optional[CompanionFile],
+        width: int,
+        height: int,
+        batch_size: int,
+    ) -> tuple[int, int, int]:
+        """
+        Apply companion file resolution to image config intelligently.
+        
+        Handles resolution as pairs [[w,h], [w,h], ...] or string formats.
+        
+        Args:
+            companion: CompanionFile instance (or None)
+            width: Current width
+            height: Current height
+            batch_size: Current batch_size
+            
+        Returns:
+            Tuple of (new_width, new_height, new_batch_size)
+        """
+        if companion is None or not companion.resolution:
+            return width, height, batch_size
+        
+        # Process resolution pairs
+        resolutions = []
+        for res in companion.resolution:
+            if isinstance(res, list) and len(res) == 2:
+                # Already a pair [w, h]
+                resolutions.append((res[0], res[1]))
+            elif isinstance(res, str):
+                # Parse string formats like "1024x768", "1024,768", "1024 x 768"
+                parsed = CompanionLoader._parse_resolution_string(res)
+                if parsed:
+                    resolutions.append(parsed)
+            elif isinstance(res, dict) and "width" in res and "height" in res:
+                # Dict format {width: ..., height: ...}
+                resolutions.append((res["width"], res["height"]))
+        
+        if not resolutions:
+            return width, height, batch_size
+        
+        # Check if current resolution matches one of the valid pairs
+        current_res = (width, height)
+        if current_res not in resolutions:
+            # Current resolution not in list, pick a random one
+            new_w, new_h = random.choice(resolutions)
+            logger.info(
+                f"Current resolution {current_res} not in companion list, "
+                f"selected random: {new_w}x{new_h}"
+            )
+            return new_w, new_h, batch_size
+        
+        return width, height, batch_size
 
-# numeric types:
-# if single value, assign it directly 
-# if 2 values: check that the current value is within those limits. if not, choose a random number between those limits
-# if more values: treat them as a list and check that the current value is exactly equal to one of the values in the list. if not, choose one element randomly
+    @staticmethod
+    def apply_companion_to_prompts(
+        companion: Optional[CompanionFile],
+        positive_prompt: str,
+        negative_prompt: str,
+    ) -> tuple[str, str]:
+        """
+        Apply companion prompt suggestions to prompts intelligently.
+        
+        Can add from lists or comma-separated strings, with random selection.
+        
+        Args:
+            companion: CompanionFile instance (or None)
+            positive_prompt: Current positive prompt
+            negative_prompt: Current negative prompt
+            
+        Returns:
+            Tuple of (new_positive_prompt, new_negative_prompt)
+        """
+        if companion is None:
+            return positive_prompt, negative_prompt
+        
+        # Apply positive prompt suggestions
+        if companion.positive_prompt:
+            positive_prompt = CompanionLoader._apply_text_suggestions(
+                companion.positive_prompt,
+                positive_prompt,
+                "positive_prompt"
+            )
+        
+        # Apply negative prompt suggestions
+        if companion.negative_prompt:
+            negative_prompt = CompanionLoader._apply_text_suggestions(
+                companion.negative_prompt,
+                negative_prompt,
+                "negative_prompt"
+            )
+        
+        return positive_prompt, negative_prompt
 
-# size types:
-# those should come in pairs: [[w,h],[w,h]...]
-# if instead they come in string format ("wxh or w,h etc"), first transform to actual pairs of numbers
-# check that the width and height correspond exactly to one of the pairs.
-# if not, choose a pair randomly from the list
+    # ======================== Helper Methods ========================
 
-# text types:
-# could be a list of terms or a string
-# if its a string, first convert to list of terms splitting by comma
-# from the list of strings, first shuffle,then choose a random amount of terms to add
-# then concatenate with comma
-# finally assign to the proper prompt, example:
-# if input is:lora file / negative text, assign to negative prompts class, feature "lora"
+    @staticmethod
+    def _apply_numeric_value(
+        values: List[Union[int, float, List]],
+        current: Union[int, float],
+        param_name: str,
+    ) -> Union[int, float]:
+        """
+        Apply numeric values based on type:
+        - Single value: use it directly
+        - Two values [min, max]: check current is within range, else random in range
+        - Multiple values: check current matches one, else choose random
+        """
+        if not values:
+            return current
+        
+        if len(values) == 1:
+            # Single value, use it directly
+            val = values[0]
+            if isinstance(val, (list, dict)):
+                # Shouldn't happen for numeric, log warning
+                logger.warning(f"Unexpected structure for numeric {param_name}: {val}")
+                return current
+            return type(current)(val)
+        
+        if len(values) == 2 and all(isinstance(v, (int, float)) for v in values):
+            # Range [min, max]
+            min_val, max_val = values[0], values[1]
+            if min_val <= current <= max_val:
+                # Current value within range, keep it
+                return current
+            else:
+                # Current value outside range, pick random in range
+                if isinstance(current, int):
+                    new_val = random.randint(int(min_val), int(max_val))
+                else:
+                    new_val = random.uniform(min_val, max_val)
+                logger.info(
+                    f"Value {current} for {param_name} outside range [{min_val}, {max_val}], "
+                    f"selected random: {new_val}"
+                )
+                return new_val
+        
+        # Multiple values, treat as choice list
+        return CompanionLoader._apply_choice_value(values, current, param_name)
 
+    @staticmethod
+    def _apply_choice_value(
+        options: List[Any],
+        current: Any,
+        param_name: str,
+    ) -> Any:
+        """
+        Apply choice values from a list:
+        - If current matches one, keep it
+        - Otherwise randomly choose from list
+        """
+        if not options:
+            return current
+        
+        if current in options:
+            # Current value is valid, keep it
+            return current
+        
+        # Current not in options, pick random
+        new_val = random.choice(options)
+        logger.info(
+            f"Value '{current}' for {param_name} not in companion list {options}, "
+            f"selected random: '{new_val}'"
+        )
+        return new_val
 
-# always try to find values for all parameters, sizes, lora weight, and maybe even
-# things like clip skip, upscale (this should be a sub dictionary and inside follow the main rules)
-# detailer, and any other element you find in the file
-# the main types should be the ones described before, and a dict type where you process the inside values
-# also, remember that if theres any value not handled by this class, print a warning about a not found value
+    @staticmethod
+    def _apply_text_suggestions(
+        suggestions: List[str],
+        current: str,
+        param_name: str,
+    ) -> str:
+        """
+        Apply text suggestions:
+        - Parse suggestions (list or comma-separated strings)
+        - Randomly add 0-50% of suggestions to current prompt
+        """
+        if not suggestions:
+            return current
+        
+        # Flatten suggestions into list of terms
+        all_terms = []
+        for suggestion in suggestions:
+            if isinstance(suggestion, str):
+                # Split by comma and clean up
+                terms = [t.strip() for t in suggestion.split(",") if t.strip()]
+                all_terms.extend(terms)
+            else:
+                all_terms.append(str(suggestion))
+        
+        if not all_terms:
+            return current
+        
+        # Randomly select 0-50% of suggestions
+        num_to_add = random.randint(0, max(1, len(all_terms) // 2))
+        if num_to_add == 0:
+            return current
+        
+        selected_terms = random.sample(all_terms, min(num_to_add, len(all_terms)))
+        
+        # Append to current prompt
+        if current:
+            new_prompt = current + ", " + ", ".join(selected_terms)
+        else:
+            new_prompt = ", ".join(selected_terms)
+        
+        logger.info(
+            f"Added {num_to_add} terms to {param_name}: {selected_terms}"
+        )
+        return new_prompt
+
+    @staticmethod
+    def _parse_resolution_string(res_str: str) -> Optional[tuple[int, int]]:
+        """
+        Parse resolution string formats like "1024x768", "1024,768", "1024 x 768".
+        
+        Returns:
+            Tuple of (width, height) or None if parse fails
+        """
+        # Try patterns: WIDTHxHEIGHT, WIDTH,HEIGHT, WIDTH x HEIGHT
+        patterns = [
+            r"(\d+)\s*[x×]\s*(\d+)",  # 1024x768 or 1024 x 768
+            r"(\d+)\s*,\s*(\d+)",      # 1024,768
+            r"(\d+)\s+(\d+)",           # 1024 768
+        ]
+        
+        for pattern in patterns:
+            match = re.match(pattern, res_str, re.IGNORECASE)
+            if match:
+                try:
+                    w, h = int(match.group(1)), int(match.group(2))
+                    return (w, h)
+                except (ValueError, IndexError):
+                    continue
+        
+        logger.warning(f"Could not parse resolution string: {res_str}")
+        return None
 
 
     @staticmethod

@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from nodes.parameters_builder_node import ParametersBuilderNode
-from alltopipe_types import Pipe, Parameters
+from ..parameters_builder_node import ParametersBuilderNode
+from ...alltopipe_types import Pipe, Parameters
 
 
 class TestParametersBuilderNode(unittest.TestCase):
@@ -22,21 +22,22 @@ class TestParametersBuilderNode(unittest.TestCase):
         self.assertEqual(ParametersBuilderNode.RETURN_TYPES, ("PIPE",))
         self.assertEqual(ParametersBuilderNode.RETURN_NAMES, ("pipe",))
         self.assertEqual(ParametersBuilderNode.FUNCTION, "execute")
-        self.assertEqual(ParametersBuilderNode.CATEGORY, "All-to-Pipe")
+        self.assertEqual(ParametersBuilderNode.CATEGORY, "all-to-pipe")
 
     def test_node_has_required_inputs(self):
-        """Test that ParametersBuilderNode has required inputs."""
+        """Test that ParametersBuilderNode has optional pipe and required parameters."""
         node = ParametersBuilderNode()
         inputs = node.INPUT_TYPES()
 
+        optional = inputs.get("optional", {})
+        self.assertIn("pipe", optional)
+        
         required = inputs.get("required", {})
-        self.assertIn("pipe", required)
         self.assertIn("steps", required)
         self.assertIn("cfg", required)
         self.assertIn("sampler", required)
         self.assertIn("scheduler", required)
         self.assertIn("seed", required)
-        self.assertIn("randomize_seed", required)
 
     def test_sampler_and_scheduler_combo(self):
         """Test that sampler and scheduler have COMBO inputs."""

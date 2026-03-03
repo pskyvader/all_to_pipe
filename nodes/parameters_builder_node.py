@@ -4,7 +4,7 @@ All-to-Pipe parameters builder node.
 Builds and attaches sampler parameters to the Pipe.
 """
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 import random
 from ..alltopipe_types import Pipe, Parameters
 from ..common.utils import deep_copy_pipe
@@ -75,38 +75,32 @@ class ParametersBuilderNode:
         """Initialize the parameters builder node."""
         pass
 
+#TODO: add RANDOM option for sampler and scheduler, at the beginning of the list
     @staticmethod
     def execute(
-        pipe: Pipe,
-        steps: int,
-        cfg: float,
-        sampler: str,
-        scheduler: str,
+        pipe: Optional[Pipe] = None,
+        steps: int = 20,
+        cfg: float = 7.0,
+        sampler: str = "euler",
+        scheduler: str = "normal",
         seed: int = 0,
-        randomize_seed: bool = False,
     ) -> Tuple[Pipe]:
         """
         Execute the node and build parameters for the pipe.
         
         Args:
-            pipe: The input Pipe instance
+            pipe: Optional Pipe instance (creates new if None)
             steps: Number of sampling steps
             cfg: Classifier-free guidance scale
             sampler: Sampler name
             scheduler: Scheduler name
             seed: Random seed for reproducibility
-            randomize_seed: If True, generate random seed (seed input is ignored)
             
         Returns:
             Tuple containing the modified Pipe instance
         """
         # Deep copy pipe to avoid modifying the original
-        #TODO: pipe should be optional in all nodes, if no pipe is given, create a new one
-        
-        new_pipe: Pipe = deep_copy_pipe(pipe)
-
-        # Generate random seed if requested
-        final_seed = random.randint(MIN_SEED, MAX_SEED) if randomize_seed else seed
+        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
 
         # Create and validate the parameters
         parameters: Parameters = Parameters(
@@ -114,7 +108,7 @@ class ParametersBuilderNode:
             cfg=cfg,
             sampler=sampler,
             scheduler=scheduler,
-            seed=final_seed,
+            seed=seed,
         )
         validate_parameters(parameters)
 
@@ -132,14 +126,15 @@ class ParametersBuilderNode:
             Dictionary defining node inputs with COMBO selectors
         """
         return {
-            "required": {
+            "optional": {
                 "pipe": ("PIPE",),
+            },
+            "required": {
                 "steps": ("INT", {"default": 20, "min": MIN_STEPS, "max": MAX_STEPS}),
                 "cfg": ("FLOAT", {"default": 7.0, "min": MIN_CFG, "max": MAX_CFG, "step": 0.1}),
                 "sampler": (SUPPORTED_SAMPLERS,),
                 "scheduler": (SUPPORTED_SCHEDULERS,),
                 "seed": ("INT", {"default": 0, "min": MIN_SEED, "max": MAX_SEED}),
-                "randomize_seed": ("BOOLEAN", {"default": False}),
             }
         }
 

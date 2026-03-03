@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from nodes.positive_prompt_node import PositivePromptNode
-from alltopipe_types import Pipe, PositivePrompt
+from ..positive_prompt_node import PositivePromptNode
+from ...alltopipe_types import Pipe, PositivePrompt
 
 
 class TestPositivePromptNode(unittest.TestCase):
@@ -22,22 +22,23 @@ class TestPositivePromptNode(unittest.TestCase):
         self.pipe = Pipe()
 
     def test_node_has_required_inputs(self):
-        """Test that PositivePromptNode has required inputs."""
+        """Test that PositivePromptNode has optional pipe and required feature/text."""
         node = PositivePromptNode()
         inputs = node.INPUT_TYPES()
 
+        optional = inputs.get("optional", {})
+        self.assertIn("pipe", optional)
+        
         required = inputs.get("required", {})
-        self.assertIn("pipe", required)
-        self.assertIn("age", required)
-        self.assertIn("body", required)
-        self.assertIn("clothes", required)
+        self.assertIn("feature", required)
+        self.assertIn("text", required)
 
     def test_node_class_name(self):
         """Test PositivePromptNode class attributes."""
         self.assertEqual(PositivePromptNode.RETURN_TYPES, ("PIPE",))
         self.assertEqual(PositivePromptNode.RETURN_NAMES, ("pipe",))
         self.assertEqual(PositivePromptNode.FUNCTION, "execute")
-        self.assertEqual(PositivePromptNode.CATEGORY, "All-to-Pipe")
+        self.assertEqual(PositivePromptNode.CATEGORY, "all-to-pipe")
 
 
 if __name__ == "__main__":

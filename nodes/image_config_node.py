@@ -22,18 +22,18 @@ class ImageConfigNode:
 
     @staticmethod
     def execute(
-        pipe: Pipe,
-        width: int,
-        height: int,
-        batch_size: int,
-        noise: float,
+        pipe: Optional[Pipe] = None,
+        width: int = 512,
+        height: int = 512,
+        batch_size: int = 1,
+        noise: float = 1.0,
         color_code: str = "",
     ) -> Tuple[Pipe]:
         """
         Execute the node and set image configuration in the pipe.
 
         Args:
-            pipe: The input Pipe instance
+            pipe: Optional Pipe instance (creates new if None)
             width: Image width in pixels
             height: Image height in pixels
             batch_size: Number of images in batch
@@ -44,7 +44,7 @@ class ImageConfigNode:
             Tuple containing the modified Pipe instance
         """
         # Deep copy pipe to avoid modifying the original
-        new_pipe: Pipe = deep_copy_pipe(pipe)
+        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
 
         # Create and attach image config
         color: Optional[str] = color_code if color_code.strip() else None
@@ -69,8 +69,10 @@ class ImageConfigNode:
             Dictionary defining node inputs
         """
         return {
-            "required": {
+            "optional": {
                 "pipe": ("PIPE",),
+            },
+            "required": {
                 "width": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),

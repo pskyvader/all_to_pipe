@@ -9,6 +9,7 @@ from typing import Dict, Any, Tuple, Optional
 from ..alltopipe_types import Pipe
 from ..common.prompt_helpers import prompt_to_string
 from ..common.validators import validate_pipe
+from ..common.prompt_template import TemplateParser
 
 
 class ExportJsonNode:
@@ -45,6 +46,33 @@ class ExportJsonNode:
         # Convert prompts to dictionaries
         positive_dict: Dict[str, str] = prompt_to_string(pipe.positive_prompt)
         negative_dict: Dict[str, str] = prompt_to_string(pipe.negative_prompt)
+        
+        # Parse templates if they exist
+        positive_template_parsed = None
+        if hasattr(pipe.positive_prompt, "template") and pipe.positive_prompt.template:
+            try:
+                positive_template_parsed = TemplateParser.parse_template(
+                    pipe.positive_prompt.template,
+                    pipe.positive_prompt,
+                    pipe.negative_prompt,
+                    allow_missing=True,
+                    default_value=""
+                )
+            except ValueError:
+                pass
+        
+        negative_template_parsed = None
+        if hasattr(pipe.negative_prompt, "template") and pipe.negative_prompt.template:
+            try:
+                negative_template_parsed = TemplateParser.parse_template(
+                    pipe.negative_prompt.template,
+                    pipe.positive_prompt,
+                    pipe.negative_prompt,
+                    allow_missing=True,
+                    default_value=""
+                )
+            except ValueError:
+                pass
 
         # Build LoRAs data
         loras_data: list[Dict[str, Any]] = []
@@ -95,24 +123,50 @@ class ExportJsonNode:
         if pipe.companion_lora_data is not None:
             companion_data["loras"] = pipe.companion_lora_data
 
-        #TODO: all properties should be combined in a single dictionary, 
-        # not several sub dictionaries
-        # Assemble complete JSON output with consolidated structure
-        json_output: Dict[str, Any] = {
-            "pipeline": {
-                "model": model_data,
-                "loras": loras_data,
-                "parameters": parameters_data,
-                "prompts": {
-                    "positive": positive_dict,
-                    "negative": negative_dict,
-                },
-                "image_config": image_config_data,
-                "metadata": {
-                    "companion": companion_data if companion_data else None,
-                }
-            }
-        }
+        # Assemble consolidated flat JSON structure
+        # All properties at top level for easier consumption
+        json_output: Dict[str, Any] = {}
+        
+        # Model info
+        if model_data:
+            json_output["model"] = model_data["name"]
+            json_output["model_subfolder"] = model_data["subfolder"]
+        
+        # LoRAs
+        if loras_data:
+            json_output["loras"] = loras_data
+        
+        # Parameters
+        if parameters_data:
+            json_output["steps"] = parameters_data["steps"]
+            json_output["cfg"] = parameters_data["cfg"]
+            json_output["sampler"] = parameters_data["sampler"]
+            json_output["scheduler"] = parameters_data["scheduler"]
+            json_output["seed"] = parameters_data["seed"]
+        
+        # Prompts (flat structure with parsed templates if available)
+        if positive_template_parsed:
+            json_output["positive_prompt"] = positive_template_parsed
+        elif positive_dict:
+            json_output["positive_prompt"] = positive_dict
+        
+        if negative_template_parsed:
+            json_output["negative_prompt"] = negative_template_parsed
+        elif negative_dict:
+            json_output["negative_prompt"] = negative_dict
+        
+        # Image config
+        if image_config_data:
+            json_output["width"] = image_config_data["width"]
+            json_output["height"] = image_config_data["height"]
+            json_output["batch_size"] = image_config_data["batch_size"]
+            json_output["noise"] = image_config_data["noise"]
+            if image_config_data["color_code"]:
+                json_output["color_code"] = image_config_data["color_code"]
+        
+        # Companion data
+        if companion_data:
+            json_output["metadata"] = {"companion": companion_data}
 
         # Return as JSON string
         json_string: str = json.dumps(json_output, indent=2, default=str)

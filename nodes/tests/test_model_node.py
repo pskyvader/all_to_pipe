@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from nodes.model_node import ModelNode
-from alltopipe_types import Pipe
+from ..model_node import ModelNode
+from ...alltopipe_types import Pipe
 
 
 class TestModelNode(unittest.TestCase):
@@ -22,15 +22,17 @@ class TestModelNode(unittest.TestCase):
         self.assertEqual(ModelNode.RETURN_TYPES, ("PIPE",))
         self.assertEqual(ModelNode.RETURN_NAMES, ("pipe",))
         self.assertEqual(ModelNode.FUNCTION, "execute")
-        self.assertEqual(ModelNode.CATEGORY, "All-to-Pipe")
+        self.assertEqual(ModelNode.CATEGORY, "all-to-pipe")
 
     def test_node_has_required_inputs(self):
-        """Test that ModelNode has required inputs."""
+        """Test that ModelNode has optional pipe and required model parameters."""
         node = ModelNode()
         inputs = node.INPUT_TYPES()
 
+        optional = inputs.get("optional", {})
+        self.assertIn("pipe", optional)
+        
         required = inputs.get("required", {})
-        self.assertIn("pipe", required)
         self.assertIn("model_subfolder", required)
         self.assertIn("model_name", required)
         self.assertIn("random_model", required)

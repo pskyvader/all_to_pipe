@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from nodes.lora_node import LoraNode
-from alltopipe_types import Pipe
+from ..lora_node import LoraNode
+from ...alltopipe_types import Pipe, LoraSpec
 
 
 class TestLoraNode(unittest.TestCase):
@@ -22,15 +22,17 @@ class TestLoraNode(unittest.TestCase):
         self.assertEqual(LoraNode.RETURN_TYPES, ("PIPE",))
         self.assertEqual(LoraNode.RETURN_NAMES, ("pipe",))
         self.assertEqual(LoraNode.FUNCTION, "execute")
-        self.assertEqual(LoraNode.CATEGORY, "All-to-Pipe")
+        self.assertEqual(LoraNode.CATEGORY, "all-to-pipe")
 
     def test_node_has_required_inputs(self):
-        """Test that LoraNode has required inputs."""
+        """Test that LoraNode has optional pipe and required LoRA parameters."""
         node = LoraNode()
         inputs = node.INPUT_TYPES()
 
+        optional = inputs.get("optional", {})
+        self.assertIn("pipe", optional)
+        
         required = inputs.get("required", {})
-        self.assertIn("pipe", required)
         self.assertIn("lora_subfolder", required)
         self.assertIn("lora_name", required)
         self.assertIn("weight", required)
