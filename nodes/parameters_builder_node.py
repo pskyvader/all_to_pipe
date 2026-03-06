@@ -43,15 +43,15 @@ def validate_parameters(params: Parameters) -> None:
         )
     if params.sampler is None:
         raise ValueError("sampler is required but not set")
-    if not isinstance(params.sampler, str) or params.sampler not in SUPPORTED_SAMPLERS:
+    if not isinstance(params.sampler, str) or (params.sampler != "RANDOM" and params.sampler not in SUPPORTED_SAMPLERS):
         raise ValueError(
-            f"sampler must be one of {SUPPORTED_SAMPLERS}, got {params.sampler}"
+            f"sampler must be one of {SUPPORTED_SAMPLERS} or 'RANDOM', got {params.sampler}"
         )
     if params.scheduler is None:
         raise ValueError("scheduler is required but not set")
-    if not isinstance(params.scheduler, str) or params.scheduler not in SUPPORTED_SCHEDULERS:
+    if not isinstance(params.scheduler, str) or (params.scheduler != "RANDOM" and params.scheduler not in SUPPORTED_SCHEDULERS):
         raise ValueError(
-            f"scheduler must be one of {SUPPORTED_SCHEDULERS}, got {params.scheduler}"
+            f"scheduler must be one of {SUPPORTED_SCHEDULERS} or 'RANDOM', got {params.scheduler}"
         )
     if params.seed is None:
         raise ValueError("seed is required but not set")
@@ -75,7 +75,6 @@ class ParametersBuilderNode:
         """Initialize the parameters builder node."""
         pass
 
-#TODO: add RANDOM option for sampler and scheduler, at the beginning of the list
     @staticmethod
     def execute(
         pipe: Optional[Pipe] = None,
@@ -92,8 +91,8 @@ class ParametersBuilderNode:
             pipe: Optional Pipe instance (creates new if None)
             steps: Number of sampling steps
             cfg: Classifier-free guidance scale
-            sampler: Sampler name
-            scheduler: Scheduler name
+            sampler: Sampler name or 'RANDOM' for random selection
+            scheduler: Scheduler name or 'RANDOM' for random selection
             seed: Random seed for reproducibility
             
         Returns:
@@ -102,12 +101,22 @@ class ParametersBuilderNode:
         # Deep copy pipe to avoid modifying the original
         new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
 
+        # Handle RANDOM sampler selection
+        selected_sampler = sampler
+        if sampler == "RANDOM":
+            selected_sampler = random.choice(SUPPORTED_SAMPLERS)
+
+        # Handle RANDOM scheduler selection
+        selected_scheduler = scheduler
+        if scheduler == "RANDOM":
+            selected_scheduler = random.choice(SUPPORTED_SCHEDULERS)
+
         # Create and validate the parameters
         parameters: Parameters = Parameters(
             steps=steps,
             cfg=cfg,
-            sampler=sampler,
-            scheduler=scheduler,
+            sampler=selected_sampler,
+            scheduler=selected_scheduler,
             seed=seed,
         )
         validate_parameters(parameters)
@@ -125,6 +134,10 @@ class ParametersBuilderNode:
         Returns:
             Dictionary defining node inputs with COMBO selectors
         """
+        # Add RANDOM option at the beginning of sampler and scheduler lists
+        sampler_options = ["RANDOM"] + SUPPORTED_SAMPLERS
+        scheduler_options = ["RANDOM"] + SUPPORTED_SCHEDULERS
+
         return {
             "optional": {
                 "pipe": ("PIPE",),
@@ -132,8 +145,8 @@ class ParametersBuilderNode:
             "required": {
                 "steps": ("INT", {"default": 20, "min": MIN_STEPS, "max": MAX_STEPS}),
                 "cfg": ("FLOAT", {"default": 7.0, "min": MIN_CFG, "max": MAX_CFG, "step": 0.1}),
-                "sampler": (SUPPORTED_SAMPLERS,),
-                "scheduler": (SUPPORTED_SCHEDULERS,),
+                "sampler": (tuple(sampler_options),),
+                "scheduler": (tuple(scheduler_options),),
                 "seed": ("INT", {"default": 0, "min": MIN_SEED, "max": MAX_SEED}),
             }
         }

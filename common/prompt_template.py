@@ -99,8 +99,7 @@ class TemplateParser:
     @staticmethod
     def parse_template(
         template: str,
-        positive_prompt: PositivePrompt,
-        negative_prompt: Optional[NegativePrompt] = None,
+        prompt_map: PositivePrompt|NegativePrompt,
         allow_missing: bool = False,
         default_value: str = "[MISSING]",
     ) -> str:
@@ -150,12 +149,7 @@ class TemplateParser:
             >>> TemplateParser.parse_template("A <age> person", pos)
             'A young person'
         """
-        if not isinstance(template, str):
-            raise ValueError("Template must be a string")
-
-        if not template:
-            return ""
-
+        
         result: str = template
         placeholders = TemplateParser.find_placeholders(template)
 
@@ -163,11 +157,9 @@ class TemplateParser:
             # Try to get from positive prompt first
             value: Optional[str] = None
             
-            if hasattr(positive_prompt, placeholder):
-                value = getattr(positive_prompt, placeholder)
-            elif negative_prompt and hasattr(negative_prompt, placeholder):
-                value = getattr(negative_prompt, placeholder)
-
+            if hasattr(prompt_map, placeholder):
+                value = getattr(prompt_map, placeholder)
+            
             if value is None:
                 if allow_missing:
                     # Use default value for missing variables
@@ -211,7 +203,6 @@ class TemplateParser:
             TemplateParser.parse_template(
                 template,
                 positive_prompt,
-                negative_prompt,
                 allow_missing,
                 default_value,
             )

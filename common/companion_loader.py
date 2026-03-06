@@ -81,9 +81,7 @@ class CompanionLoader:
             CompanionFile instance if found, None otherwise.
             Logs a warning if file is not found.
         """
-        result = CompanionLoader._load_companion_file(
-            model_name, subfolder, base_path
-        )
+        result = CompanionLoader._load_companion_file(model_name, subfolder, base_path)
         if result is None:
             logger.warning(
                 f"No companion file found for model '{model_name}' in {subfolder or 'root'}. "
@@ -101,9 +99,10 @@ class CompanionLoader:
         Load companion JSON file for a LoRA.
 
         Looks for {lora_name}.json alongside the LoRA file.
+        Automatically removes file extensions (e.g., .safetensors) before searching.
 
         Args:
-            lora_name: LoRA filename without extension
+            lora_name: LoRA filename (with or without extension)
             subfolder: Subfolder within models/loras
             base_path: Base path to loras directory
 
@@ -111,16 +110,13 @@ class CompanionLoader:
             CompanionFile instance if found, None otherwise.
             Logs a warning if file is not found.
         """
-        result = CompanionLoader._load_companion_file(
-            lora_name, subfolder, base_path
-        )
+        result = CompanionLoader._load_companion_file(lora_name, subfolder, base_path)
         if result is None:
             logger.warning(
                 f"No companion file found for LoRA '{lora_name}' in {subfolder or 'root'}. "
                 f"Expected: {os.path.join(base_path, subfolder or '', f'{lora_name}.json')}"
             )
         return result
-
 
     @staticmethod
     def _load_companion_file(
@@ -142,11 +138,14 @@ class CompanionLoader:
         if not name:
             return None
 
+        base = name.rsplit(".", 1)[0]
+        json_name = base + ".json"
+
         # Build path: base_path/subfolder/name.json
         if subfolder:
-            json_path: str = os.path.join(base_path, subfolder, f"{name}.json")
+            json_path: str = os.path.join(base_path, subfolder, json_name)
         else:
-            json_path = os.path.join(base_path, f"{name}.json")
+            json_path = os.path.join(base_path, json_name)
 
         # Check if file exists
         if not os.path.isfile(json_path):
@@ -174,47 +173,47 @@ class CompanionLoader:
     ) -> tuple[int, float, str, str, int]:
         """
         Apply companion file values to generation parameters intelligently.
-        
+
         Args:
             companion: CompanionFile instance (or None)
             steps: Current steps value
-            cfg: Current cfg value  
+            cfg: Current cfg value
             sampler: Current sampler
             scheduler: Current scheduler
             seed: Current seed
-            
+
         Returns:
             Tuple of (new_steps, new_cfg, new_sampler, new_scheduler, new_seed)
         """
         if companion is None:
             return steps, cfg, sampler, scheduler, seed
-        
+
         # Apply sampler (single value or choice from list)
         if companion.sampler:
             sampler = CompanionLoader._apply_choice_value(
                 companion.sampler, sampler, "sampler"
             )
-        
+
         # Apply steps (numeric type)
         if companion.steps:
             steps = CompanionLoader._apply_numeric_value(
                 companion.steps, steps, "steps"
             )
-        
+
         # Apply cfg (numeric type)
         if companion.cfg:
-            cfg = CompanionLoader._apply_numeric_value(
-                companion.cfg, cfg, "cfg"
-            )
-        
+            cfg = CompanionLoader._apply_numeric_value(companion.cfg, cfg, "cfg")
+
         # Scheduler (single value or choice from list)
         if "scheduler" in companion.raw_data:
             scheduler_data = companion.raw_data["scheduler"]
-            schedulers = scheduler_data if isinstance(scheduler_data, list) else [scheduler_data]
+            schedulers = (
+                scheduler_data if isinstance(scheduler_data, list) else [scheduler_data]
+            )
             scheduler = CompanionLoader._apply_choice_value(
                 schedulers, scheduler, "scheduler"
             )
-        
+
         return steps, cfg, sampler, scheduler, seed
 
     @staticmethod
@@ -226,21 +225,21 @@ class CompanionLoader:
     ) -> tuple[int, int, int]:
         """
         Apply companion file resolution to image config intelligently.
-        
+
         Handles resolution as pairs [[w,h], [w,h], ...] or string formats.
-        
+
         Args:
             companion: CompanionFile instance (or None)
             width: Current width
             height: Current height
             batch_size: Current batch_size
-            
+
         Returns:
             Tuple of (new_width, new_height, new_batch_size)
         """
         if companion is None or not companion.resolution:
             return width, height, batch_size
-        
+
         # Process resolution pairs
         resolutions = []
         for res in companion.resolution:
@@ -255,10 +254,10 @@ class CompanionLoader:
             elif isinstance(res, dict) and "width" in res and "height" in res:
                 # Dict format {width: ..., height: ...}
                 resolutions.append((res["width"], res["height"]))
-        
+
         if not resolutions:
             return width, height, batch_size
-        
+
         # Check if current resolution matches one of the valid pairs
         current_res = (width, height)
         if current_res not in resolutions:
@@ -269,7 +268,7 @@ class CompanionLoader:
                 f"selected random: {new_w}x{new_h}"
             )
             return new_w, new_h, batch_size
-        
+
         return width, height, batch_size
 
     @staticmethod
@@ -280,36 +279,32 @@ class CompanionLoader:
     ) -> tuple[str, str]:
         """
         Apply companion prompt suggestions to prompts intelligently.
-        
+
         Can add from lists or comma-separated strings, with random selection.
-        
+
         Args:
             companion: CompanionFile instance (or None)
             positive_prompt: Current positive prompt
             negative_prompt: Current negative prompt
-            
+
         Returns:
             Tuple of (new_positive_prompt, new_negative_prompt)
         """
         if companion is None:
             return positive_prompt, negative_prompt
-        
+
         # Apply positive prompt suggestions
         if companion.positive_prompt:
             positive_prompt = CompanionLoader._apply_text_suggestions(
-                companion.positive_prompt,
-                positive_prompt,
-                "positive_prompt"
+                companion.positive_prompt, positive_prompt, "positive_prompt"
             )
-        
+
         # Apply negative prompt suggestions
         if companion.negative_prompt:
             negative_prompt = CompanionLoader._apply_text_suggestions(
-                companion.negative_prompt,
-                negative_prompt,
-                "negative_prompt"
+                companion.negative_prompt, negative_prompt, "negative_prompt"
             )
-        
+
         return positive_prompt, negative_prompt
 
     # ======================== Helper Methods ========================
@@ -328,7 +323,7 @@ class CompanionLoader:
         """
         if not values:
             return current
-        
+
         if len(values) == 1:
             # Single value, use it directly
             val = values[0]
@@ -337,7 +332,7 @@ class CompanionLoader:
                 logger.warning(f"Unexpected structure for numeric {param_name}: {val}")
                 return current
             return type(current)(val)
-        
+
         if len(values) == 2 and all(isinstance(v, (int, float)) for v in values):
             # Range [min, max]
             min_val, max_val = values[0], values[1]
@@ -355,7 +350,7 @@ class CompanionLoader:
                     f"selected random: {new_val}"
                 )
                 return new_val
-        
+
         # Multiple values, treat as choice list
         return CompanionLoader._apply_choice_value(values, current, param_name)
 
@@ -372,11 +367,11 @@ class CompanionLoader:
         """
         if not options:
             return current
-        
+
         if current in options:
             # Current value is valid, keep it
             return current
-        
+
         # Current not in options, pick random
         new_val = random.choice(options)
         logger.info(
@@ -398,7 +393,7 @@ class CompanionLoader:
         """
         if not suggestions:
             return current
-        
+
         # Flatten suggestions into list of terms
         all_terms = []
         for suggestion in suggestions:
@@ -408,43 +403,41 @@ class CompanionLoader:
                 all_terms.extend(terms)
             else:
                 all_terms.append(str(suggestion))
-        
+
         if not all_terms:
             return current
-        
+
         # Randomly select 0-50% of suggestions
         num_to_add = random.randint(0, max(1, len(all_terms) // 2))
         if num_to_add == 0:
             return current
-        
+
         selected_terms = random.sample(all_terms, min(num_to_add, len(all_terms)))
-        
+
         # Append to current prompt
         if current:
             new_prompt = current + ", " + ", ".join(selected_terms)
         else:
             new_prompt = ", ".join(selected_terms)
-        
-        logger.info(
-            f"Added {num_to_add} terms to {param_name}: {selected_terms}"
-        )
+
+        logger.info(f"Added {num_to_add} terms to {param_name}: {selected_terms}")
         return new_prompt
 
     @staticmethod
     def _parse_resolution_string(res_str: str) -> Optional[tuple[int, int]]:
         """
         Parse resolution string formats like "1024x768", "1024,768", "1024 x 768".
-        
+
         Returns:
             Tuple of (width, height) or None if parse fails
         """
         # Try patterns: WIDTHxHEIGHT, WIDTH,HEIGHT, WIDTH x HEIGHT
         patterns = [
             r"(\d+)\s*[x×]\s*(\d+)",  # 1024x768 or 1024 x 768
-            r"(\d+)\s*,\s*(\d+)",      # 1024,768
-            r"(\d+)\s+(\d+)",           # 1024 768
+            r"(\d+)\s*,\s*(\d+)",  # 1024,768
+            r"(\d+)\s+(\d+)",  # 1024 768
         ]
-        
+
         for pattern in patterns:
             match = re.match(pattern, res_str, re.IGNORECASE)
             if match:
@@ -453,10 +446,9 @@ class CompanionLoader:
                     return (w, h)
                 except (ValueError, IndexError):
                     continue
-        
+
         logger.warning(f"Could not parse resolution string: {res_str}")
         return None
-
 
     @staticmethod
     def _parse_companion_data(data: Dict[str, Any]) -> CompanionFile:
@@ -480,12 +472,16 @@ class CompanionLoader:
         # Parse steps
         if "steps" in data:
             steps_data: Any = data["steps"]
-            companion.steps = steps_data if isinstance(steps_data, list) else [steps_data]
+            companion.steps = (
+                steps_data if isinstance(steps_data, list) else [steps_data]
+            )
 
         # Parse resolution
         if "resolution" in data:
             res_data: Any = data["resolution"]
-            companion.resolution = res_data if isinstance(res_data, list) else [res_data]
+            companion.resolution = (
+                res_data if isinstance(res_data, list) else [res_data]
+            )
 
         # Parse cfg
         if "cfg" in data:

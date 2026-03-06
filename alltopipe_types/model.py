@@ -1,57 +1,31 @@
-"""
-Model type and processor for All-to-Pipe.
-
-Handles model references and loading from checkpoints.
-"""
-
-from typing import Optional, Any, Dict
-
+import os
+from typing import Tuple
+import folder_paths
+import comfy.sd
+import comfy.model_patcher
 
 class Model:
-    """
-    Represents a single checkpoint model reference.
-    No loading happens here.
-    """
-
-    def __init__(self, name: str, subfolder: str) -> None:
-        """
-        Initialize Model reference.
-
-        Args:
-            name: Model filename
-            subfolder: Subfolder within models directory
-        """
+    def __init__(self, name: str, subfolder: str = "") -> None:
         self.name: str = name
         self.subfolder: str = subfolder
 
-
 class ModelProcessor:
-    """
-    Processor for Model operations.
-    Handles loading models from checkpoints and integrating with ComfyUI.
-    """
-
     @staticmethod
-    def load_model(model: Model) -> Optional[Any]:
-        """
-        Load a model from checkpoint.
-
-        Args:
-            model: Model instance with name and subfolder
-
-        Returns:
-            Loaded MODEL object compatible with ComfyUI KSampler
-            or None if loading fails
-
-        Raises:
-            ValueError: If model name is invalid
-        """
+    def load_model(model: Model) -> Tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE]:
         if not model or not model.name:
             raise ValueError("Model name is required and cannot be empty")
+        
+        target_path = os.path.join(model.subfolder, model.name)
+        ckpt_path = folder_paths.get_full_path("checkpoints", target_path)
+        
+        if not ckpt_path:
+            raise FileNotFoundError(f"Checkpoint '{target_path}' not found.")
 
-        # STUB: Would import from ComfyUI model loader
-        # This is where actual ComfyUI model loading happens
-        # e.g., from comfy_api.models import load_checkpoint
-        # return load_checkpoint(model.name, model.subfolder)
+        out = comfy.sd.load_checkpoint_guess_config(
+            ckpt_path, 
+            output_vae=True, 
+            output_clip=True, 
+            embedding_directory=folder_paths.get_folder_paths("embeddings")
+        )
 
-        return None
+        return (out[0], out[1], out[2])

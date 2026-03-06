@@ -7,7 +7,7 @@ Creates an empty Pipe object as the entry point of the pipeline.
 from typing import Dict, Any, Tuple, Optional
 from ..alltopipe_types import Pipe
 
-#TODO: SINCE all nodes should create a pipe when no pipe is passed, this node is unnecessary 
+#TODO: SINCE all nodes should create a pipe when no pipe is passed, this node is unnecessary. remove it
 
 class PipeNode:
     """

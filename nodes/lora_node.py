@@ -60,7 +60,6 @@ class LoraNode:
         """Initialize the LoRA node."""
         pass
     
-    #TODO: add subfolder for when RANDOM/ is selected
     @staticmethod
     def execute(
         pipe: Optional[Pipe] = None,
@@ -68,6 +67,7 @@ class LoraNode:
         weight: float = 1.0,
         clip_weight: float = 1.0,
         load_companion: bool = False,
+        random_subfolder: str = "all",
     ) -> Tuple[Pipe]:
         """
         Execute the node and add a LoRA specification to the pipe.
@@ -78,6 +78,7 @@ class LoraNode:
             weight: Model weight strength (overridden by companion file if present)
             clip_weight: CLIP weight strength (overridden by companion file if present)
             load_companion: Whether to load weights from companion file
+            random_subfolder: Subfolder to randomly select from when "RANDOM /" is chosen
 
         Returns:
             Tuple containing the modified Pipe instance
@@ -86,11 +87,15 @@ class LoraNode:
 
         # Handle RANDOM selection
         if lora_selection == "RANDOM /":
-            # Get all LoRAs and select randomly
-            all_loras = LoraNode._get_all_loras()
+            # Get LoRAs from specified subfolder or all subfolders
+            if random_subfolder == "all":
+                all_loras = LoraNode._get_all_loras()
+            else:
+                all_loras = discover_loras_in_subfolder(random_subfolder)
+            
             if not all_loras:
-                raise ValueError("No LoRAs found in any subfolder")
-            lora_selection = random.choice(all_loras)
+                raise ValueError(f"No LoRAs found in subfolder: {random_subfolder if random_subfolder != 'all' else 'any'}")
+            lora_selection = random.choice(all_loras) if random_subfolder == "all" else f"{random_subfolder}/{random.choice(all_loras)}"
 
         # Parse lora selection string (format: "subfolder/lora_name.ext" or "lora_name.ext")
         if "/" in lora_selection:
@@ -225,6 +230,33 @@ class LoraNode:
         
         loras.sort()
         return loras
+    
+    @staticmethod
+    def _get_lora_subfolders(base_path: str = "models/loras") -> List[str]:
+        """
+        Get all available LoRA subfolders.
+        
+        Args:
+            base_path: Base path to loras directory
+            
+        Returns:
+            List of subfolder names
+        """
+        subfolders: List[str] = ["all"]  # Include "all" option
+        
+        if not os.path.isdir(base_path):
+            return subfolders
+        
+        try:
+            for item in os.listdir(base_path):
+                path = os.path.join(base_path, item)
+                if os.path.isdir(path):
+                    subfolders.append(item)
+        except (OSError, PermissionError):
+            pass
+        
+        # subfolders.sort()
+        return subfolders
 
     @classmethod
     def INPUT_TYPES(cls) -> Dict[str, Any]:
@@ -236,6 +268,9 @@ class LoraNode:
         """
         # Get all LoRAs recursively from all subfolders
         all_loras = cls._get_all_loras()
+        
+        # Get available subfolders for random selection
+        lora_subfolders = cls._get_lora_subfolders()
         
         # Add RANDOM option
         lora_options = ["RANDOM /"] + all_loras if all_loras else ["RANDOM /"]
@@ -250,6 +285,7 @@ class LoraNode:
                 "weight": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "clip_weight": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "load_companion": ("BOOLEAN", {"default": True}),
+                "random_subfolder": ((lora_subfolders,) if lora_subfolders else ("STRING", {"default": "all"})),
             }
         }
 

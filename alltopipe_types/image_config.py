@@ -6,6 +6,7 @@ Handles image dimensions, batch size, and latent generation.
 
 from typing import Optional, Any, Tuple
 import random
+import torch
 
 
 class ImageConfig:
@@ -73,16 +74,26 @@ class ImageConfigProcessor:
         if image_config.batch_size <= 0:
             raise ValueError("Batch size must be positive")
 
-        # STUB: Would create actual noisy latent
-        # This is where ComfyUI latent generation happens
-        # Steps:
-        # 1. Use seed to set random state
-        # 2. Get or generate color from color_code
-        # 3. Create noisy image batch with specified noise percentage
-        # 4. Encode to latent representation
-        # 5. Return latent tensor
+        # Set random seed for reproducibility
+        torch.manual_seed(seed)
+        random.seed(seed)
 
-        return None
+        # Create noisy latent tensor
+        # Latent space is 1/8 the size of the image (height//8, width//8)
+        latent_height = image_config.height // 8
+        latent_width = image_config.width // 8
+
+        # Create noisy latent with specified noise level
+        # noise=1.0 means full noise, noise=0.0 means no noise
+        noisy_latent = torch.randn(
+            (image_config.batch_size, 4, latent_height, latent_width)
+        ) * image_config.noise
+
+        # Return in the ComfyUI latent format
+        return {
+            "samples": noisy_latent,
+            "downscale_ratio_spacial": 8
+        }
 
     @staticmethod
     def get_color_from_code(color_code: Optional[str]) -> Tuple[int, int, int]:

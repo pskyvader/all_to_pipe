@@ -34,16 +34,16 @@ NODE_CLASS_MAPPINGS: Dict[str, Type[Any]] = {
 
 # Human-readable display name mappings
 NODE_DISPLAY_NAME_MAPPINGS: Dict[str, str] = {
-    "AllToPipe_Create": "All-to-Pipe: Create Pipe",
-    "AllToPipe_PositivePrompt": "All-to-Pipe: Positive Prompt",
-    "AllToPipe_NegativePrompt": "All-to-Pipe: Negative Prompt",
-    "AllToPipe_Model": "All-to-Pipe: Model",
-    "AllToPipe_LoRA": "All-to-Pipe: LoRA",
-    "AllToPipe_Parameters": "All-to-Pipe: Parameters",
-    "AllToPipe_ImageConfig": "All-to-Pipe: Image Config",
-    "AllToPipe_Template": "All-to-Pipe: Template",
-    "AllToPipe_SamplerExport": "All-to-Pipe: Export (Sampler)",
-    "AllToPipe_JsonExport": "All-to-Pipe: Export (JSON)",
+    "AllToPipe_Create": "Create Pipe",
+    "AllToPipe_PositivePrompt": "Positive Prompt",
+    "AllToPipe_NegativePrompt": "Negative Prompt",
+    "AllToPipe_Model": "Model",
+    "AllToPipe_LoRA": "LoRA",
+    "AllToPipe_Parameters": "Parameters",
+    "AllToPipe_ImageConfig": "Image Config",
+    "AllToPipe_Template": "Template",
+    "AllToPipe_SamplerExport": "Export (Sampler)",
+    "AllToPipe_JsonExport": "Export (JSON)",
 }
 
 # CRITICAL: Register custom types used by All-to-Pipe nodes

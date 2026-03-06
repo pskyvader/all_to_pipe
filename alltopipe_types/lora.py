@@ -1,18 +1,12 @@
-"""
-LoRA type and processor for All-to-Pipe.
-
-Handles LoRA specifications and application to models.
-"""
-
-from typing import Optional, Any, List
+import os
+from typing import List, Tuple
+import folder_paths
+import comfy.utils
+import comfy.model_patcher
+import comfy.sd
 
 
 class LoraSpec:
-    """
-    Single LoRA entry.
-    Multiple instances may exist in Pipe.loras.
-    """
-
     def __init__(
         self,
         name: str,
@@ -20,15 +14,6 @@ class LoraSpec:
         weight: float,
         clip_weight: float,
     ) -> None:
-        """
-        Initialize LoRA specification.
-
-        Args:
-            name: LoRA filename
-            subfolder: Subfolder within loras directory
-            weight: Model weight strength
-            clip_weight: CLIP weight strength
-        """
         self.name: str = name
         self.subfolder: str = subfolder
         self.weight: float = weight
@@ -36,42 +21,29 @@ class LoraSpec:
 
 
 class LoraProcessor:
-    """
-    Processor for LoRA operations.
-    Handles applying LoRAs to loaded models.
-    """
-
     @staticmethod
     def apply_lora(
-        model: Any,
-        clip: Any,
+        model: comfy.model_patcher.ModelPatcher,
+        clip: comfy.sd.CLIP,
         loras: List[LoraSpec],
-    ) -> tuple[Any, Any]:
-        """
-        Apply a list of LoRAs to a model and clip.
-
-        Args:
-            model: Loaded MODEL object from ComfyUI
-            clip: Loaded CLIP object from ComfyUI
-            loras: List of LoraSpec instances to apply
-
-        Returns:
-            Tuple of (modified_model, modified_clip) with LoRAs applied
-            or (model, clip) unchanged if no LoRAs provided
-
-        Raises:
-            ValueError: If lora list is invalid
-        """
+    ) -> Tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP]:
         if not loras:
             return (model, clip)
 
-        if model is None or clip is None:
-            raise ValueError("Model and Clip cannot be None")
+        patched_model = model
+        patched_clip = clip
 
-        # STUB: Would import from ComfyUI lora loader
-        # This is where actual ComfyUI LoRA application happens
-        # e.g., from comfy_api.loaders import load_lora
-        # for lora_spec in loras:
-        #     model, clip = load_lora(model, clip, lora_spec.name, lora_spec.weight, lora_spec.clip_weight)
+        for lora in loras:
+            target_path = os.path.join(lora.subfolder, lora.name)
+            lora_path = folder_paths.get_full_path("loras", target_path)
 
-        return (model, clip)
+            if not lora_path:
+                raise FileNotFoundError(f"LoRA '{target_path}' not found.")
+
+            lora_weights = comfy.utils.load_torch_file(lora_path)
+
+            patched_model, patched_clip = comfy.sd.load_lora_for_models(
+                patched_model, patched_clip, lora_weights, lora.weight, lora.clip_weight
+            )
+
+        return (patched_model, patched_clip)

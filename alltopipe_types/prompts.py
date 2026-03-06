@@ -119,12 +119,15 @@ class PromptProcessor:
         if not prompt_text:
             raise ValueError("Prompt text cannot be empty")
 
-        # STUB: Would use ComfyUI CLIP encoder
-        # This is where actual prompt encoding happens
-        # e.g., from comfy_api.clip import encode_prompt
-        # return encode_prompt(clip, prompt_text)
+        if clip is None:
+            raise ValueError("CLIP model cannot be None for prompt encoding")
 
-        return None
+        # Use ComfyUI CLIP encoder to encode the prompt
+        # Standard approach: tokenize -> encode from tokens
+        tokens = clip.tokenize(prompt_text)
+        conditioning = clip.encode_from_tokens_scheduled(tokens)
+
+        return conditioning
 
     @staticmethod
     def shuffle_and_subset_prompts(

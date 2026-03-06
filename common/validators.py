@@ -4,8 +4,11 @@ All-to-Pipe validators module.
 Cross-node validation functions.
 """
 
-from typing import Optional
 from ..alltopipe_types import Pipe
+from ..alltopipe_types import Model
+from ..alltopipe_types import Parameters
+from ..alltopipe_types import ImageConfig
+
 
 
 def validate_pipe(pipe: Pipe) -> None:
@@ -20,5 +23,9 @@ def validate_pipe(pipe: Pipe) -> None:
     Args:
         pipe: The Pipe instance to validate
     """
-    if pipe is None:
-        raise ValueError("Pipe cannot be None")
+    if not isinstance(pipe.model,Model):
+        raise ValueError("Pipe.model must be a Model instance")
+    if not isinstance(pipe.parameters,Parameters):
+        raise ValueError("Pipe.parameters must be a Parameters instance")
+    if not isinstance(pipe.image_config,ImageConfig):
+        raise ValueError("Pipe.image_config must be an ImageConfig instance")

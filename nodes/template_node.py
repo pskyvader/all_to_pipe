@@ -49,7 +49,7 @@ class TemplateNode:
     FUNCTION: str = "execute"
     CATEGORY: str = "all-to-pipe"
 
-#TODO: Add example text to show the format of the tags
+#TODO: Add example text in the textbox in the node, to show the format of the tags
 
     def execute(self, pipe: Optional[Pipe] = None, template_type: str = None, template_text: str = None) -> Tuple[Pipe]:
         """
