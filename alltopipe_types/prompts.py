@@ -14,7 +14,15 @@ class PositivePrompt:
     Encoding is NOT performed here.
     """
 
-    ALLOWED_FEATURES: tuple[str, ...] = ("age", "body", "clothes", "background", "face", "lora", "model")
+    ALLOWED_FEATURES: tuple[str, ...] = (
+        "age",
+        "body",
+        "clothes",
+        "background",
+        "face",
+        "lora",
+        "model",
+    )
 
     def __init__(self) -> None:
         """Initialize empty positive prompt container."""
@@ -80,6 +88,7 @@ class PromptProcessor:
 
         # Find all placeholders
         placeholders: list[str] = re.findall(r"\{([^}]+)\}", template)
+        print(f"placeholders: {placeholders}")
 
         for placeholder in placeholders:
             # Try to get from positive prompt first
@@ -92,6 +101,8 @@ class PromptProcessor:
 
             if value is None:
                 raise ValueError(f"Variable '{placeholder}' not found in prompts")
+
+            print(f"value: {value}")
 
             result = result.replace(f"{{{placeholder}}}", str(value))
 

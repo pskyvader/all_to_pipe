@@ -10,7 +10,6 @@ import random
 from ..alltopipe_types import Pipe, Model, PositivePrompt, NegativePrompt
 from ..common.utils import deep_copy_pipe
 from ..common.file_helpers import (
-    discover_model_subfolders,
     discover_models_in_subfolder,
 )
 from ..common.companion_loader import CompanionLoader
@@ -53,6 +52,11 @@ class ModelNode:
         """
         new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
 
+        if not new_pipe.parameters:
+            raise ValueError("Pipe Needs Parameters before loading a model")
+        if not new_pipe.image_config:
+            raise ValueError("Pipe Needs Image Config before loading a model")
+
         # Handle RANDOM selection
         if model_selection == "RANDOM /":
             # Get models from specified subfolder or all subfolders
@@ -60,10 +64,16 @@ class ModelNode:
                 all_models = ModelNode._get_all_models()
             else:
                 all_models = discover_models_in_subfolder(random_subfolder)
-            
+
             if not all_models:
-                raise ValueError(f"No models found in subfolder: {random_subfolder if random_subfolder != 'all' else 'any'}")
-            model_selection = random.choice(all_models) if random_subfolder == "all" else f"{random_subfolder}/{random.choice(all_models)}"
+                raise ValueError(
+                    f"No models found in subfolder: {random_subfolder if random_subfolder != 'all' else 'any'}"
+                )
+            model_selection = (
+                random.choice(all_models)
+                if random_subfolder == "all"
+                else f"{random_subfolder}/{random.choice(all_models)}"
+            )
 
         # Parse model selection string (format: "subfolder/model_name.ext" or "model_name.ext")
         if "/" in model_selection:
@@ -90,47 +100,42 @@ class ModelNode:
         # Create and attach the model
         new_pipe.model = Model(name=model_name, subfolder=model_subfolder)
 
-        # Load companion file if requested
-        if load_companion:
-            companion = CompanionLoader.load_model_companion(
-                model_name, model_subfolder
-            )
+        companion = (
+            CompanionLoader.load_model_companion(model_name, model_subfolder)
+            if load_companion
+            else None
+        )
 
-            if companion is not None:
-                # Store companion file as dictionary for later reference
-                new_pipe.companion_model_data = companion.raw_data
+        if companion is not None:
+            # Store companion file as dictionary for later reference
+            new_pipe.companion_model_data = companion.raw_data
 
-                # Extract and apply positive prompts if present
-                if companion.positive_prompt:
-                    positive_prompts = companion.positive_prompt
-                    # Shuffle and select a random subset
-                    shuffled = list(positive_prompts)
-                    random.shuffle(shuffled)
-                    subset_size = random.randint(1, len(shuffled))
-                    selected_prompts = shuffled[:subset_size]
+            if companion.positive_prompt:
+                if new_pipe.positive_prompt is None:
+                    new_pipe.positive_prompt = PositivePrompt()
+                new_pipe.positive_prompt.model = CompanionLoader.apply_text_suggestions(
+                    companion.positive_prompt,
+                    new_pipe.positive_prompt.model,
+                    "Positive Prompts",
+                )
+            if companion.negative_prompt:
+                if new_pipe.negative_prompt is None:
+                    new_pipe.negative_prompt = NegativePrompt()
+                new_pipe.negative_prompt.model = CompanionLoader.apply_text_suggestions(
+                    companion.negative_prompt,
+                    new_pipe.negative_prompt.model,
+                    "Negative Prompts",
+                )
 
-                    if new_pipe.positive_prompt is None:
-                        new_pipe.positive_prompt = PositivePrompt()
-                    # Store as model feature
-                    new_pipe.positive_prompt.model = ", ".join(selected_prompts)
+            if new_pipe.parameters:
+                new_pipe.parameters = CompanionLoader.apply_companion_to_parameters(
+                    companion, new_pipe.parameters
+                )
+            if companion.resolution:
+                new_pipe.image_config = CompanionLoader.apply_companion_to_image_config(
+                    companion, new_pipe.image_config
+                )
 
-                # Extract and apply negative prompts if present
-                if companion.negative_prompt:
-                    negative_prompts = companion.negative_prompt
-                    # Shuffle and select a random subset
-                    shuffled = list(negative_prompts)
-                    random.shuffle(shuffled)
-                    subset_size = random.randint(1, len(shuffled))
-                    selected_prompts = shuffled[:subset_size]
-
-                    if new_pipe.negative_prompt is None:
-                        new_pipe.negative_prompt = NegativePrompt()
-                    # Store as model feature
-                    new_pipe.negative_prompt.model = ", ".join(selected_prompts)
-
-                if companion.cfg:
-                    #TODO: CHECK And apply cfg if needed
-                    new_pipe.parameters.cfg
         return (new_pipe,)
 
     @staticmethod
@@ -152,7 +157,7 @@ class ModelNode:
 
         try:
             # Walk all subdirectories
-            for root, dirs, files in os.walk(base_path):
+            for root, _, files in os.walk(base_path):
                 for filename in files:
                     if any(filename.lower().endswith(ext) for ext in model_extensions):
                         # Get relative path from base
@@ -172,18 +177,18 @@ class ModelNode:
     def _get_model_subfolders(base_path: str = "models/checkpoints") -> List[str]:
         """
         Get all available model subfolders.
-        
+
         Args:
             base_path: Base path to checkpoints directory
-            
+
         Returns:
             List of subfolder names
         """
         subfolders: List[str] = ["all"]  # Include "all" option
-        
+
         if not os.path.isdir(base_path):
             return subfolders
-        
+
         try:
             for item in os.listdir(base_path):
                 path = os.path.join(base_path, item)
@@ -191,7 +196,7 @@ class ModelNode:
                     subfolders.append(item)
         except (OSError, PermissionError):
             pass
-        
+
         # subfolders.sort()
         return subfolders
 
@@ -205,7 +210,7 @@ class ModelNode:
         """
         # Get all models recursively from all subfolders
         all_models = cls._get_all_models()
-        
+
         # Get available subfolders for random selection
         model_subfolders = cls._get_model_subfolders()
 
@@ -224,7 +229,11 @@ class ModelNode:
                     else ("STRING", {"default": default_model})
                 ),
                 "load_companion": ("BOOLEAN", {"default": True}),
-                "random_subfolder": ((model_subfolders,) if model_subfolders else ("STRING", {"default": "all"})),
+                "random_subfolder": (
+                    (model_subfolders,)
+                    if model_subfolders
+                    else ("STRING", {"default": "all"})
+                ),
             },
         }
 

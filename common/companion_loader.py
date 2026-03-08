@@ -4,13 +4,15 @@ Companion file loader for All-to-Pipe.
 Loads and manages JSON companion files for models and LoRAs.
 """
 
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List, Union, Tuple
 import json
 import os
 import random
 import logging
 import re
 from dataclasses import dataclass, field
+from ..alltopipe_types.parameters import Parameters
+from ..alltopipe_types.image_config import ImageConfig
 
 # Setup logging for companion file warnings
 logger = logging.getLogger(__name__)
@@ -28,8 +30,9 @@ class CompanionFile:
 
     sampler: List[str] = field(default_factory=list)
     """List of samplers. Single value means select one from list."""
+    scheduler: List[str] = field(default_factory=list)
 
-    steps: List[Union[int, List[int]]] = field(default_factory=list)
+    steps: List[int] = field(default_factory=list)
     """
     Steps configuration:
     - len=1: use that specific value
@@ -37,10 +40,10 @@ class CompanionFile:
     - len>2: choose one from list
     """
 
-    resolution: List[List[int]] = field(default_factory=list)
+    resolution: List[int] = field(default_factory=list)
     """List of valid [width, height] pairs."""
 
-    cfg: List[Union[float, List[float]]] = field(default_factory=list)
+    cfg: List[float] = field(default_factory=list)
     """Cfg configuration (same as steps)."""
 
     negative_prompt: List[str] = field(default_factory=list)
@@ -164,13 +167,9 @@ class CompanionLoader:
 
     @staticmethod
     def apply_companion_to_parameters(
-        companion: Optional[CompanionFile],
-        steps: int,
-        cfg: float,
-        sampler: str,
-        scheduler: str,
-        seed: int,
-    ) -> tuple[int, float, str, str, int]:
+        companion: CompanionFile,
+        parameters: Parameters,
+    ) -> Parameters:
         """
         Apply companion file values to generation parameters intelligently.
 
@@ -185,8 +184,14 @@ class CompanionLoader:
         Returns:
             Tuple of (new_steps, new_cfg, new_sampler, new_scheduler, new_seed)
         """
-        if companion is None:
-            return steps, cfg, sampler, scheduler, seed
+
+        steps, cfg, sampler, scheduler, seed = (
+            parameters.steps,
+            parameters.cfg,
+            parameters.sampler,
+            parameters.scheduler,
+            parameters.seed,
+        )
 
         # Apply sampler (single value or choice from list)
         if companion.sampler:
@@ -196,33 +201,34 @@ class CompanionLoader:
 
         # Apply steps (numeric type)
         if companion.steps:
-            steps = CompanionLoader._apply_numeric_value(
-                companion.steps, steps, "steps"
+            steps = int(
+                CompanionLoader._apply_numeric_value(companion.steps, steps, "steps")
             )
 
         # Apply cfg (numeric type)
         if companion.cfg:
             cfg = CompanionLoader._apply_numeric_value(companion.cfg, cfg, "cfg")
 
-        # Scheduler (single value or choice from list)
-        if "scheduler" in companion.raw_data:
-            scheduler_data = companion.raw_data["scheduler"]
-            schedulers = (
-                scheduler_data if isinstance(scheduler_data, list) else [scheduler_data]
-            )
+        if companion.scheduler:
             scheduler = CompanionLoader._apply_choice_value(
-                schedulers, scheduler, "scheduler"
+                companion.scheduler, scheduler, "scheduler"
             )
 
-        return steps, cfg, sampler, scheduler, seed
+        (
+            parameters.steps,
+            parameters.cfg,
+            parameters.sampler,
+            parameters.scheduler,
+            parameters.seed,
+        ) = (steps, cfg, sampler, scheduler, seed)
+
+        return parameters
 
     @staticmethod
     def apply_companion_to_image_config(
-        companion: Optional[CompanionFile],
-        width: int,
-        height: int,
-        batch_size: int,
-    ) -> tuple[int, int, int]:
+        companion: CompanionFile,
+        image_config: ImageConfig | None,
+    ) -> ImageConfig:
         """
         Apply companion file resolution to image config intelligently.
 
@@ -237,15 +243,11 @@ class CompanionLoader:
         Returns:
             Tuple of (new_width, new_height, new_batch_size)
         """
-        if companion is None or not companion.resolution:
-            return width, height, batch_size
-
         # Process resolution pairs
-        resolutions = []
+        resolutions: List[Tuple[int, int]] = []
         for res in companion.resolution:
             if isinstance(res, list) and len(res) == 2:
-                # Already a pair [w, h]
-                resolutions.append((res[0], res[1]))
+                resolutions.append((int(res[0]), int(res[1])))
             elif isinstance(res, str):
                 # Parse string formats like "1024x768", "1024,768", "1024 x 768"
                 parsed = CompanionLoader._parse_resolution_string(res)
@@ -253,13 +255,18 @@ class CompanionLoader:
                     resolutions.append(parsed)
             elif isinstance(res, dict) and "width" in res and "height" in res:
                 # Dict format {width: ..., height: ...}
-                resolutions.append((res["width"], res["height"]))
+                resolutions.append((int(res["width"]), int(res["height"])))
 
         if not resolutions:
-            return width, height, batch_size
+            raise ValueError("No valid resolution found in companion")
 
-        # Check if current resolution matches one of the valid pairs
-        current_res = (width, height)
+        if not image_config:
+            image_config = ImageConfig(-1, -1, 1)
+
+        current_res = (
+            image_config.width,
+            image_config.height,
+        )
         if current_res not in resolutions:
             # Current resolution not in list, pick a random one
             new_w, new_h = random.choice(resolutions)
@@ -267,16 +274,16 @@ class CompanionLoader:
                 f"Current resolution {current_res} not in companion list, "
                 f"selected random: {new_w}x{new_h}"
             )
-            return new_w, new_h, batch_size
+            image_config.width, image_config.height = new_w, new_h
 
-        return width, height, batch_size
+        return image_config
 
     @staticmethod
     def apply_companion_to_prompts(
-        companion: Optional[CompanionFile],
-        positive_prompt: str,
-        negative_prompt: str,
-    ) -> tuple[str, str]:
+        companion: CompanionFile,
+        positive_prompt: str | None,
+        negative_prompt: str | None,
+    ) -> Tuple[str, str]:
         """
         Apply companion prompt suggestions to prompts intelligently.
 
@@ -290,18 +297,19 @@ class CompanionLoader:
         Returns:
             Tuple of (new_positive_prompt, new_negative_prompt)
         """
-        if companion is None:
-            return positive_prompt, negative_prompt
-
+        if not positive_prompt:
+            positive_prompt = ""
+        if not negative_prompt:
+            negative_prompt = ""
         # Apply positive prompt suggestions
         if companion.positive_prompt:
-            positive_prompt = CompanionLoader._apply_text_suggestions(
+            positive_prompt = CompanionLoader.apply_text_suggestions(
                 companion.positive_prompt, positive_prompt, "positive_prompt"
             )
 
         # Apply negative prompt suggestions
         if companion.negative_prompt:
-            negative_prompt = CompanionLoader._apply_text_suggestions(
+            negative_prompt = CompanionLoader.apply_text_suggestions(
                 companion.negative_prompt, negative_prompt, "negative_prompt"
             )
 
@@ -311,34 +319,34 @@ class CompanionLoader:
 
     @staticmethod
     def _apply_numeric_value(
-        values: List[Union[int, float, List]],
-        current: Union[int, float],
+        values: List[int] | List[float],
+        current: int | float,
         param_name: str,
-    ) -> Union[int, float]:
+    ) -> int | float:
         """
         Apply numeric values based on type:
         - Single value: use it directly
         - Two values [min, max]: check current is within range, else random in range
         - Multiple values: check current matches one, else choose random
         """
+        current_type = type(current)
         if not values:
-            return current
+            return current_type(current)
+
+        if isinstance(values, (int, float)):
+            return current_type(values)
 
         if len(values) == 1:
             # Single value, use it directly
             val = values[0]
-            if isinstance(val, (list, dict)):
-                # Shouldn't happen for numeric, log warning
-                logger.warning(f"Unexpected structure for numeric {param_name}: {val}")
-                return current
-            return type(current)(val)
+            return current_type(val)
 
-        if len(values) == 2 and all(isinstance(v, (int, float)) for v in values):
+        if len(values) == 2:
             # Range [min, max]
             min_val, max_val = values[0], values[1]
             if min_val <= current <= max_val:
                 # Current value within range, keep it
-                return current
+                return current_type(current)
             else:
                 # Current value outside range, pick random in range
                 if isinstance(current, int):
@@ -349,10 +357,12 @@ class CompanionLoader:
                     f"Value {current} for {param_name} outside range [{min_val}, {max_val}], "
                     f"selected random: {new_val}"
                 )
-                return new_val
+                return current_type(new_val)
 
         # Multiple values, treat as choice list
-        return CompanionLoader._apply_choice_value(values, current, param_name)
+        return current_type(
+            CompanionLoader._apply_choice_value(values, current, param_name)
+        )
 
     @staticmethod
     def _apply_choice_value(
@@ -365,12 +375,14 @@ class CompanionLoader:
         - If current matches one, keep it
         - Otherwise randomly choose from list
         """
+        current_type = type(current)
+
         if not options:
-            return current
+            return current_type(current)
 
         if current in options:
             # Current value is valid, keep it
-            return current
+            return current_type(current)
 
         # Current not in options, pick random
         new_val = random.choice(options)
@@ -378,12 +390,12 @@ class CompanionLoader:
             f"Value '{current}' for {param_name} not in companion list {options}, "
             f"selected random: '{new_val}'"
         )
-        return new_val
+        return current_type(new_val)
 
     @staticmethod
-    def _apply_text_suggestions(
+    def apply_text_suggestions(
         suggestions: List[str],
-        current: str,
+        current: str | None,
         param_name: str,
     ) -> str:
         """
@@ -391,37 +403,22 @@ class CompanionLoader:
         - Parse suggestions (list or comma-separated strings)
         - Randomly add 0-50% of suggestions to current prompt
         """
+        if not current:
+            current = ""
         if not suggestions:
             return current
-
         # Flatten suggestions into list of terms
-        all_terms = []
+        all_terms: List[str] = []
         for suggestion in suggestions:
-            if isinstance(suggestion, str):
-                # Split by comma and clean up
-                terms = [t.strip() for t in suggestion.split(",") if t.strip()]
-                all_terms.extend(terms)
-            else:
-                all_terms.append(str(suggestion))
-
+            terms = [t.strip() for t in suggestion.split(",") if t.strip()]
+            all_terms.extend(terms)
         if not all_terms:
             return current
-
-        # Randomly select 0-50% of suggestions
-        num_to_add = random.randint(0, max(1, len(all_terms) // 2))
-        if num_to_add == 0:
-            return current
-
-        selected_terms = random.sample(all_terms, min(num_to_add, len(all_terms)))
-
-        # Append to current prompt
-        if current:
-            new_prompt = current + ", " + ", ".join(selected_terms)
-        else:
-            new_prompt = ", ".join(selected_terms)
-
-        logger.info(f"Added {num_to_add} terms to {param_name}: {selected_terms}")
-        return new_prompt
+        subset_size = random.randint(1, len(all_terms))
+        selected_terms = random.sample(all_terms, min(subset_size, len(all_terms)))
+        current += ", ".join(selected_terms)
+        logger.info(f"Added {subset_size} terms to {param_name}: {selected_terms}")
+        return current
 
     @staticmethod
     def _parse_resolution_string(res_str: str) -> Optional[tuple[int, int]]:
@@ -441,11 +438,8 @@ class CompanionLoader:
         for pattern in patterns:
             match = re.match(pattern, res_str, re.IGNORECASE)
             if match:
-                try:
-                    w, h = int(match.group(1)), int(match.group(2))
-                    return (w, h)
-                except (ValueError, IndexError):
-                    continue
+                w, h = int(match.group(1)), int(match.group(2))
+                return (w, h)
 
         logger.warning(f"Could not parse resolution string: {res_str}")
         return None
@@ -469,12 +463,24 @@ class CompanionLoader:
             samplers: Any = data["sampler"]
             companion.sampler = samplers if isinstance(samplers, list) else [samplers]
 
+        # Parse scheduler
+        if "scheduler" in data:
+            schedulers: Any = data["scheduler"]
+            companion.scheduler = (
+                schedulers if isinstance(schedulers, list) else [schedulers]
+            )
+
         # Parse steps
         if "steps" in data:
             steps_data: Any = data["steps"]
             companion.steps = (
                 steps_data if isinstance(steps_data, list) else [steps_data]
             )
+
+        # Parse cfg
+        if "cfg" in data:
+            cfg_data: Any = data["cfg"]
+            companion.cfg = cfg_data if isinstance(cfg_data, list) else [cfg_data]
 
         # Parse resolution
         if "resolution" in data:
@@ -483,21 +489,24 @@ class CompanionLoader:
                 res_data if isinstance(res_data, list) else [res_data]
             )
 
-        # Parse cfg
-        if "cfg" in data:
-            cfg_data: Any = data["cfg"]
-            companion.cfg = cfg_data if isinstance(cfg_data, list) else [cfg_data]
-
         # Parse negative_prompt
-        if "negative_prompt" in data:
-            neg_data: Any = data["negative_prompt"]
+        if "negative_prompt" in data or "negative_prompts" in data:
+            neg_data: Any = (
+                data["negative_prompt"]
+                if "negative_prompt" in data
+                else data["negative_prompts"]
+            )
             companion.negative_prompt = (
                 neg_data if isinstance(neg_data, list) else [neg_data]
             )
 
         # Parse positive_prompt
-        if "positive_prompt" in data:
-            pos_data: Any = data["positive_prompt"]
+        if "positive_prompt" in data or "positive_prompts" in data:
+            pos_data: Any = (
+                data["positive_prompt"]
+                if "positive_prompt" in data
+                else data["positive_prompts"]
+            )
             companion.positive_prompt = (
                 pos_data if isinstance(pos_data, list) else [pos_data]
             )

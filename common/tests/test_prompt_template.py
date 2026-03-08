@@ -49,24 +49,6 @@ class TestTemplateParser(unittest.TestCase):
         placeholders = TemplateParser.find_placeholders(template)
         self.assertEqual(placeholders, [])
 
-    def test_validate_template_all_valid(self):
-        """Test validating a template where all variables exist."""
-        template = "A <age> <body> person"
-        is_valid, missing = TemplateParser.validate_template(
-            template, self.positive_prompt, self.negative_prompt
-        )
-        self.assertTrue(is_valid)
-        self.assertEqual(missing, [])
-
-    def test_validate_template_missing_variable(self):
-        """Test validating a template with missing variable."""
-        template = "A <age> <nonexistent> person"
-        is_valid, missing = TemplateParser.validate_template(
-            template, self.positive_prompt, self.negative_prompt
-        )
-        self.assertFalse(is_valid)
-        self.assertIn("nonexistent", missing)
-
     def test_parse_template_simple(self):
         """Test parsing a simple template."""
         template = "A <age> person"
@@ -80,20 +62,6 @@ class TestTemplateParser(unittest.TestCase):
         expected = "A young athletic person wearing casual shirt in outdoor garden"
         self.assertEqual(result, expected)
 
-    def test_parse_multiple_templates(self):
-        """Test parsing multiple templates at once."""
-        templates = [
-            "A <age> person",
-            "Wearing <clothes>",
-            "In <background>",
-        ]
-        results = TemplateParser.parse_multiple_templates(
-            templates, self.positive_prompt
-        )
-        self.assertEqual(len(results), 3)
-        self.assertEqual(results[0], "A young person")
-        self.assertEqual(results[1], "Wearing casual shirt")
-        self.assertEqual(results[2], "In outdoor garden")
 
 
 if __name__ == "__main__":

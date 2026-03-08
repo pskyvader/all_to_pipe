@@ -15,7 +15,7 @@ from ..common.prompt_template import TemplateParser
 class ExportJsonNode:
     """
     Exports Pipe as plain serializable data.
-    
+
     Produces a complete JSON representation of the pipeline
     including all parameters, prompts, models, LoRAs, and metadata
     without loading models or encoding prompts.
@@ -29,14 +29,14 @@ class ExportJsonNode:
     def execute(pipe: Pipe) -> Tuple[str,]:
         """
         Execute the node and export pipe as JSON-safe data.
-        
+
         Args:
             pipe: The input Pipe instance
-            
+
         Returns:
             Tuple containing:
                 - json_string: Complete JSON representation of the pipeline
-                
+
         Raises:
             ValueError: If pipe is invalid
         """
@@ -46,33 +46,25 @@ class ExportJsonNode:
         # Convert prompts to dictionaries
         positive_dict: Dict[str, str] = prompt_to_string(pipe.positive_prompt)
         negative_dict: Dict[str, str] = prompt_to_string(pipe.negative_prompt)
-        
+
         # Parse templates if they exist
         positive_template_parsed = None
         if hasattr(pipe.positive_prompt, "template") and pipe.positive_prompt.template:
-            try:
-                positive_template_parsed = TemplateParser.parse_template(
-                    pipe.positive_prompt.template,
-                    pipe.positive_prompt,
-                    pipe.negative_prompt,
-                    allow_missing=True,
-                    default_value=""
-                )
-            except ValueError:
-                pass
-        
+            positive_template_parsed = TemplateParser.parse_template(
+                pipe.positive_prompt.template,
+                pipe.positive_prompt,
+                allow_missing=True,
+                default_value="",
+            )
+
         negative_template_parsed = None
         if hasattr(pipe.negative_prompt, "template") and pipe.negative_prompt.template:
-            try:
-                negative_template_parsed = TemplateParser.parse_template(
-                    pipe.negative_prompt.template,
-                    pipe.positive_prompt,
-                    pipe.negative_prompt,
-                    allow_missing=True,
-                    default_value=""
-                )
-            except ValueError:
-                pass
+            negative_template_parsed = TemplateParser.parse_template(
+                pipe.negative_prompt.template,
+                pipe.negative_prompt,
+                allow_missing=True,
+                default_value="",
+            )
 
         # Build LoRAs data
         loras_data: list[Dict[str, Any]] = []
@@ -126,16 +118,16 @@ class ExportJsonNode:
         # Assemble consolidated flat JSON structure
         # All properties at top level for easier consumption
         json_output: Dict[str, Any] = {}
-        
+
         # Model info
         if model_data:
             json_output["model"] = model_data["name"]
             json_output["model_subfolder"] = model_data["subfolder"]
-        
+
         # LoRAs
         if loras_data:
             json_output["loras"] = loras_data
-        
+
         # Parameters
         if parameters_data:
             json_output["steps"] = parameters_data["steps"]
@@ -143,18 +135,18 @@ class ExportJsonNode:
             json_output["sampler"] = parameters_data["sampler"]
             json_output["scheduler"] = parameters_data["scheduler"]
             json_output["seed"] = parameters_data["seed"]
-        
+
         # Prompts (flat structure with parsed templates if available)
         if positive_template_parsed:
             json_output["positive_prompt"] = positive_template_parsed
-        elif positive_dict:
-            json_output["positive_prompt"] = positive_dict
-        
+        if positive_dict:
+            json_output["positive_prompt_dictionary"] = positive_dict
+
         if negative_template_parsed:
             json_output["negative_prompt"] = negative_template_parsed
-        elif negative_dict:
-            json_output["negative_prompt"] = negative_dict
-        
+        if negative_dict:
+            json_output["negative_prompt_dictionary"] = negative_dict
+
         # Image config
         if image_config_data:
             json_output["width"] = image_config_data["width"]
@@ -163,7 +155,7 @@ class ExportJsonNode:
             json_output["noise"] = image_config_data["noise"]
             if image_config_data["color_code"]:
                 json_output["color_code"] = image_config_data["color_code"]
-        
+
         # Companion data
         if companion_data:
             json_output["metadata"] = {"companion": companion_data}
@@ -176,7 +168,7 @@ class ExportJsonNode:
     def INPUT_TYPES(cls) -> Dict[str, Any]:
         """
         Define the input types for this node.
-        
+
         Returns:
             Dictionary defining node inputs
         """

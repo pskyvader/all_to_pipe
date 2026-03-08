@@ -20,51 +20,51 @@ from ..common.constants import (
 )
 
 
-def validate_parameters(params: Parameters) -> None:
-    """
-    Validate that all sampler parameters are properly defined.
-    
-    Raises:
-        ValueError: If any parameter is invalid
-    """
-    if params is None:
-        raise ValueError("Parameters cannot be None")
-    if params.steps is None:
-        raise ValueError("steps is required but not set")
-    if not isinstance(params.steps, int) or params.steps < MIN_STEPS or params.steps > MAX_STEPS:
-        raise ValueError(
-            f"steps must be an integer between {MIN_STEPS} and {MAX_STEPS}, got {params.steps}"
-        )
-    if params.cfg is None:
-        raise ValueError("cfg is required but not set")
-    if not isinstance(params.cfg, (int, float)) or params.cfg < MIN_CFG or params.cfg > MAX_CFG:
-        raise ValueError(
-            f"cfg must be a number between {MIN_CFG} and {MAX_CFG}, got {params.cfg}"
-        )
-    if params.sampler is None:
-        raise ValueError("sampler is required but not set")
-    if not isinstance(params.sampler, str) or (params.sampler != "RANDOM" and params.sampler not in SUPPORTED_SAMPLERS):
-        raise ValueError(
-            f"sampler must be one of {SUPPORTED_SAMPLERS} or 'RANDOM', got {params.sampler}"
-        )
-    if params.scheduler is None:
-        raise ValueError("scheduler is required but not set")
-    if not isinstance(params.scheduler, str) or (params.scheduler != "RANDOM" and params.scheduler not in SUPPORTED_SCHEDULERS):
-        raise ValueError(
-            f"scheduler must be one of {SUPPORTED_SCHEDULERS} or 'RANDOM', got {params.scheduler}"
-        )
-    if params.seed is None:
-        raise ValueError("seed is required but not set")
-    if not isinstance(params.seed, int) or params.seed < MIN_SEED or params.seed > MAX_SEED:
-        raise ValueError(
-            f"seed must be an integer between {MIN_SEED} and {MAX_SEED}, got {params.seed}"
-        )
+# def validate_parameters(params: Parameters) -> None:
+#     """
+#     Validate that all sampler parameters are properly defined.
+
+#     Raises:
+#         ValueError: If any parameter is invalid
+#     """
+#     if params is None:
+#         raise ValueError("Parameters cannot be None")
+#     if params.steps is None:
+#         raise ValueError("steps is required but not set")
+#     if not isinstance(params.steps, int) or params.steps < MIN_STEPS or params.steps > MAX_STEPS:
+#         raise ValueError(
+#             f"steps must be an integer between {MIN_STEPS} and {MAX_STEPS}, got {params.steps}"
+#         )
+#     if params.cfg is None:
+#         raise ValueError("cfg is required but not set")
+#     if not isinstance(params.cfg, (int, float)) or params.cfg < MIN_CFG or params.cfg > MAX_CFG:
+#         raise ValueError(
+#             f"cfg must be a number between {MIN_CFG} and {MAX_CFG}, got {params.cfg}"
+#         )
+#     if params.sampler is None:
+#         raise ValueError("sampler is required but not set")
+#     if not isinstance(params.sampler, str) or (params.sampler != "RANDOM" and params.sampler not in SUPPORTED_SAMPLERS):
+#         raise ValueError(
+#             f"sampler must be one of {SUPPORTED_SAMPLERS} or 'RANDOM', got {params.sampler}"
+#         )
+#     if params.scheduler is None:
+#         raise ValueError("scheduler is required but not set")
+#     if not isinstance(params.scheduler, str) or (params.scheduler != "RANDOM" and params.scheduler not in SUPPORTED_SCHEDULERS):
+#         raise ValueError(
+#             f"scheduler must be one of {SUPPORTED_SCHEDULERS} or 'RANDOM', got {params.scheduler}"
+#         )
+#     if params.seed is None:
+#         raise ValueError("seed is required but not set")
+#     if not isinstance(params.seed, int) or params.seed < MIN_SEED or params.seed > MAX_SEED:
+#         raise ValueError(
+#             f"seed must be an integer between {MIN_SEED} and {MAX_SEED}, got {params.seed}"
+#         )
 
 
 class ParametersBuilderNode:
     """
     Builds and attaches sampler parameters to the Pipe.
-    
+
     Features:
     - COMBO selectors for sampler and scheduler
     - Random seed generation option
@@ -86,7 +86,7 @@ class ParametersBuilderNode:
     ) -> Tuple[Pipe]:
         """
         Execute the node and build parameters for the pipe.
-        
+
         Args:
             pipe: Optional Pipe instance (creates new if None)
             steps: Number of sampling steps
@@ -94,7 +94,7 @@ class ParametersBuilderNode:
             sampler: Sampler name or 'RANDOM' for random selection
             scheduler: Scheduler name or 'RANDOM' for random selection
             seed: Random seed for reproducibility
-            
+
         Returns:
             Tuple containing the modified Pipe instance
         """
@@ -119,7 +119,7 @@ class ParametersBuilderNode:
             scheduler=selected_scheduler,
             seed=seed,
         )
-        validate_parameters(parameters)
+        # validate_parameters(parameters)
 
         # Attach parameters to the pipe
         new_pipe.parameters = parameters
@@ -144,15 +144,17 @@ class ParametersBuilderNode:
             },
             "required": {
                 "steps": ("INT", {"default": 20, "min": MIN_STEPS, "max": MAX_STEPS}),
-                "cfg": ("FLOAT", {"default": 7.0, "min": MIN_CFG, "max": MAX_CFG, "step": 0.1}),
+                "cfg": (
+                    "FLOAT",
+                    {"default": 7.0, "min": MIN_CFG, "max": MAX_CFG, "step": 0.1},
+                ),
                 "sampler": (tuple(sampler_options),),
                 "scheduler": (tuple(scheduler_options),),
                 "seed": ("INT", {"default": 0, "min": MIN_SEED, "max": MAX_SEED}),
-            }
+            },
         }
 
     RETURN_TYPES: Tuple[str, ...] = ("PIPE",)
     RETURN_NAMES: Tuple[str, ...] = ("pipe",)
     FUNCTION: str = "execute"
     CATEGORY: str = "all-to-pipe"
-

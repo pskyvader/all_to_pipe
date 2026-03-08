@@ -40,61 +40,8 @@ class TemplateParser:
             >>> TemplateParser.find_placeholders("A <age> person")
             ['age']
         """
-        if not isinstance(template, str):
-            raise ValueError("Template must be a string")
-
         matches = TemplateParser.PLACEHOLDER_PATTERN.findall(template)
         return matches
-
-    @staticmethod
-    def validate_template(
-        template: str,
-        positive_prompt: PositivePrompt,
-        negative_prompt: Optional[NegativePrompt] = None,
-        strict: bool = False,
-    ) -> tuple[bool, List[str]]:
-        """
-        Validate a template against available prompt attributes.
-
-        Args:
-            template: Template string to validate (uses <variable> syntax)
-            positive_prompt: PositivePrompt instance with available attributes
-            negative_prompt: Optional NegativePrompt instance
-            strict: If True, raise error if variable not found. If False, return as list.
-
-        Returns:
-            Tuple of (is_valid, missing_variables)
-            - is_valid: True if all variables are found in prompts
-            - missing_variables: List of variables not found in prompts
-
-        Raises:
-            ValueError: If strict=True and variables are missing
-            
-        Example:
-            >>> is_valid, missing = TemplateParser.validate_template("<age> person", pos_prompt)
-            >>> is_valid
-            True
-        """
-        if not isinstance(template, str):
-            raise ValueError("Template must be a string")
-
-        placeholders = TemplateParser.find_placeholders(template)
-        missing: List[str] = []
-
-        for placeholder in placeholders:
-            # Check if exists in positive prompt
-            if hasattr(positive_prompt, placeholder):
-                continue
-            # Check if exists in negative prompt
-            if negative_prompt and hasattr(negative_prompt, placeholder):
-                continue
-            # Variable not found
-            missing.append(placeholder)
-
-        if strict and missing:
-            raise ValueError(f"Missing variables in template: {missing}")
-
-        return (len(missing) == 0, missing)
 
     @staticmethod
     def parse_template(
@@ -172,42 +119,6 @@ class TemplateParser:
 
         return result
 
-    @staticmethod
-    def parse_multiple_templates(
-        templates: List[str],
-        positive_prompt: PositivePrompt,
-        negative_prompt: Optional[NegativePrompt] = None,
-        allow_missing: bool = False,
-        default_value: str = "[MISSING]",
-    ) -> List[str]:
-        """
-        Parse multiple templates using the same prompt objects.
-
-        Args:
-            templates: List of template strings
-            positive_prompt: PositivePrompt instance
-            negative_prompt: Optional NegativePrompt instance
-            allow_missing: If True, allow missing variables
-            default_value: Default value for missing variables
-
-        Returns:
-            List of parsed strings
-
-        Raises:
-            ValueError: If any template has missing variables (when allow_missing=False)
-        """
-        if not isinstance(templates, list):
-            raise ValueError("Templates must be a list")
-
-        return [
-            TemplateParser.parse_template(
-                template,
-                positive_prompt,
-                allow_missing,
-                default_value,
-            )
-            for template in templates
-        ]
 
     @staticmethod
     def get_required_variables(template: str) -> List[str]:

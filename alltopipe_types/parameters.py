@@ -58,8 +58,6 @@ class ParametersProcessor:
         Raises:
             ValueError: If parameters is None or invalid
         """
-        if parameters is None:
-            raise ValueError("Parameters cannot be None")
 
         return {
             "steps": parameters.steps,

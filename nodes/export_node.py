@@ -83,36 +83,13 @@ class ExportNode:
         if pipe.loras:
             model, clip = LoraProcessor.apply_lora(model, clip, pipe.loras)
 
-        # Parse and merge positive prompt (with template support)
-        positive_prompt_dict = {
-            k: v
-            for k, v in pipe.positive_prompt.__dict__.items()
-            if v is not None and k != "template" and k != "template_variables"
-        }
-
-        
         parsed_template = TemplateParser.parse_template(
             pipe.positive_prompt.template,
             pipe.positive_prompt,
             allow_missing=True,
             default_value="",
         )
-        if parsed_template:
-            positive_prompt_dict["template"] = parsed_template
-    
-
-        positive_prompt_text: str = merge_prompts(positive_prompt_dict)
-        positive_conditioning: Optional[Any] = None
-        if positive_prompt_text:
-            positive_conditioning = PromptProcessor.encode_prompt(
-                positive_prompt_text, clip
-            )
-        # Parse and merge negative prompt (with template support)
-        negative_prompt_dict = {
-            k: v
-            for k, v in pipe.negative_prompt.__dict__.items()
-            if v is not None and k != "template" and k != "template_variables"
-        }
+        positive_conditioning = PromptProcessor.encode_prompt(parsed_template, clip)
 
         parsed_template = TemplateParser.parse_template(
             pipe.negative_prompt.template,
@@ -120,17 +97,8 @@ class ExportNode:
             allow_missing=True,
             default_value="",
         )
-        if parsed_template:
-            negative_prompt_dict["template"] = parsed_template
-    
+        negative_conditioning = PromptProcessor.encode_prompt(parsed_template, clip)
 
-        negative_prompt_text: str = merge_prompts(negative_prompt_dict)
-        negative_conditioning: Optional[Any] = None
-        if negative_prompt_text:
-            negative_conditioning = PromptProcessor.encode_prompt(
-                negative_prompt_text, clip
-            )
-            
         # Extract all parameters for direct KSampler connection
         seed: int = pipe.parameters.seed
         steps: int = pipe.parameters.steps
@@ -140,8 +108,7 @@ class ExportNode:
 
         denoise: float = 1.0  # Default denoise value
 
-        latent_image=ImageConfigProcessor.create_noisy_latent(pipe.image_config, seed)
-        
+        latent_image = ImageConfigProcessor.create_noisy_latent(pipe.image_config, seed)
 
         # Return all parameters individually for direct KSampler connection
         # This allows connecting each output directly to KSampler inputs

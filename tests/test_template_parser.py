@@ -58,31 +58,6 @@ class TestTemplateParser(unittest.TestCase):
         placeholders = TemplateParser.find_placeholders(template)
         self.assertEqual(placeholders, ["age", "age"])
 
-    def test_validate_template_all_valid(self):
-        """Test validating a template where all variables exist."""
-        template = "A {age} {body} person"
-        is_valid, missing = TemplateParser.validate_template(
-            template, self.positive_prompt, self.negative_prompt
-        )
-        self.assertTrue(is_valid)
-        self.assertEqual(missing, [])
-
-    def test_validate_template_missing_variable(self):
-        """Test validating a template with missing variable."""
-        template = "A {age} {nonexistent} person"
-        is_valid, missing = TemplateParser.validate_template(
-            template, self.positive_prompt, self.negative_prompt
-        )
-        self.assertFalse(is_valid)
-        self.assertIn("nonexistent", missing)
-
-    def test_validate_template_strict_mode(self):
-        """Test strict validation raises error on missing variables."""
-        template = "A {age} {nonexistent} person"
-        with self.assertRaises(ValueError):
-            TemplateParser.validate_template(
-                template, self.positive_prompt, self.negative_prompt, strict=True
-            )
 
     def test_parse_template_simple(self):
         """Test parsing a simple template."""
@@ -142,22 +117,6 @@ class TestTemplateParser(unittest.TestCase):
         variables = TemplateParser.get_required_variables(template)
         self.assertEqual(variables, ["age"])
 
-    def test_parse_multiple_templates(self):
-        """Test parsing multiple templates."""
-        templates = [
-            "A {age} person",
-            "Wearing {clothes}",
-            "In {background}",
-        ]
-        results = TemplateParser.parse_multiple_templates(
-            templates, self.positive_prompt
-        )
-        expected = [
-            "A young person",
-            "Wearing casual shirt",
-            "In outdoor garden",
-        ]
-        self.assertEqual(results, expected)
 
     def test_parse_from_negative_prompt(self):
         """Test parsing uses values from negative prompt if not in positive."""
@@ -172,12 +131,6 @@ class TestTemplateParser(unittest.TestCase):
         with self.assertRaises(ValueError):
             TemplateParser.find_placeholders(123)
 
-    def test_error_invalid_template_for_validate(self):
-        """Test that non-string template raises error in validate."""
-        with self.assertRaises(ValueError):
-            TemplateParser.validate_template(
-                123, self.positive_prompt, self.negative_prompt
-            )
 
     def test_error_invalid_template_for_parse(self):
         """Test that non-string template raises error in parse."""
