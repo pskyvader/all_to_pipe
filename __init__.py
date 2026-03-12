@@ -17,6 +17,7 @@ from .nodes.image_config_node import ImageConfigNode
 from .nodes.template_node import TemplateNode
 from .nodes.export_node import ExportNode
 from .nodes.export_json_node import ExportJsonNode
+from .nodes.export_text_node import ExportTextNode
 
 # Node class mappings for ComfyUI registration
 NODE_CLASS_MAPPINGS: Dict[str, Type[Any]] = {
@@ -30,6 +31,7 @@ NODE_CLASS_MAPPINGS: Dict[str, Type[Any]] = {
     "AllToPipe_Template": TemplateNode,
     "AllToPipe_SamplerExport": ExportNode,
     "AllToPipe_JsonExport": ExportJsonNode,
+    "AllToPipe_TextExport": ExportTextNode,
 }
 
 # Human-readable display name mappings
@@ -44,6 +46,7 @@ NODE_DISPLAY_NAME_MAPPINGS: Dict[str, str] = {
     "AllToPipe_Template": "Template",
     "AllToPipe_SamplerExport": "Export (Sampler)",
     "AllToPipe_JsonExport": "Export (JSON)",
+    "AllToPipe_TextExport": "Export (Text)",
 }
 
 # CRITICAL: Register custom types used by All-to-Pipe nodes
@@ -51,5 +54,3 @@ NODE_DISPLAY_NAME_MAPPINGS: Dict[str, str] = {
 CUSTOM_TYPE_NAMES = [
     "PIPE",
 ]
-
-

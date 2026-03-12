@@ -5,7 +5,7 @@ Sets image dimensions, batch size, and noise parameters.
 """
 
 from typing import Dict, Any, Tuple, Optional
-from ..alltopipe_types import Pipe, ImageConfig
+from ..alltopipe_types import Pipe, ImageConfig,ImageConfigProcessor
 from ..common.utils import deep_copy_pipe
 
 
@@ -55,6 +55,9 @@ class ImageConfigNode:
             noise=noise,
             color_code=color,
         )
+        seed= new_pipe.parameters.seed if new_pipe.parameters else None
+        image_config.image=ImageConfigProcessor.create_noisy_image(image_config, seed)
+
 
         new_pipe.image_config = image_config
 

@@ -4,8 +4,7 @@ All-to-Pipe export node.
 Resolves Pipe into sampler-ready objects.
 """
 
-from typing import Dict, Any, Tuple, Optional
-import torch
+from typing import Dict, Any, Tuple
 from ..alltopipe_types import Pipe
 from ..alltopipe_types.model import ModelProcessor
 from ..alltopipe_types.lora import LoraProcessor
@@ -13,11 +12,12 @@ from ..alltopipe_types.lora import LoraProcessor
 from ..alltopipe_types.image_config import ImageConfigProcessor
 from ..alltopipe_types.prompts import PromptProcessor
 from ..common.validators import validate_pipe
-from ..common.prompt_helpers import merge_prompts
 from ..common.prompt_template import TemplateParser
 
 
 from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
+import gc
+import torch
 
 
 class ExportNode:
@@ -86,16 +86,14 @@ class ExportNode:
         parsed_template = TemplateParser.parse_template(
             pipe.positive_prompt.template,
             pipe.positive_prompt,
-            allow_missing=True,
-            default_value="",
+            allow_missing=pipe.positive_prompt.allow_missing,
         )
         positive_conditioning = PromptProcessor.encode_prompt(parsed_template, clip)
 
         parsed_template = TemplateParser.parse_template(
             pipe.negative_prompt.template,
             pipe.negative_prompt,
-            allow_missing=True,
-            default_value="",
+            allow_missing=pipe.positive_prompt.allow_missing,
         )
         negative_conditioning = PromptProcessor.encode_prompt(parsed_template, clip)
 
@@ -105,18 +103,34 @@ class ExportNode:
         cfg: float = pipe.parameters.cfg
         sampler_name: str = pipe.parameters.sampler
         scheduler: str = pipe.parameters.scheduler
+        denoise: float = pipe.parameters.denoise
 
-        denoise: float = 1.0  # Default denoise value
+        if not pipe.image_config.image:
+            pipe.image_config.image = ImageConfigProcessor.create_noisy_image(
+                pipe.image_config, seed
+            )
+        image = pipe.image_config.image
 
-        latent_image = ImageConfigProcessor.create_noisy_latent(pipe.image_config, seed)
+        latent_image: Dict[str, torch.Tensor] = {
+            "samples": vae.encode(image[:, :, :, :3])
+        }
+
+        #since this node does all at the same time, it's important to clean up
+        # the pipe
+        del pipe
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         # Return all parameters individually for direct KSampler connection
         # This allows connecting each output directly to KSampler inputs
         return (
             model,
             vae,
+            clip,
             positive_conditioning,
             negative_conditioning,
+            image,
             latent_image,
             seed,
             steps,
@@ -143,8 +157,10 @@ class ExportNode:
     RETURN_TYPES: Tuple[Any, ...] = (
         "MODEL",
         "VAE",
+        "CLIP",
         "CONDITIONING",
         "CONDITIONING",
+        "IMAGE",
         "LATENT",
         "INT",
         "INT",
@@ -156,8 +172,10 @@ class ExportNode:
     RETURN_NAMES: Tuple[str, ...] = (
         "model",
         "vae",
+        "clip",
         "positive",
         "negative",
+        "image",
         "latent_image",
         "seed",
         "steps",

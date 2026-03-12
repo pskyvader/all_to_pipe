@@ -5,16 +5,17 @@ System for parsing text templates with variable substitution from prompt objects
 """
 
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from ..alltopipe_types import PositivePrompt, NegativePrompt
+
 
 class TemplateParser:
     """
     Parser for prompt templates with variable substitution.
-    
+
     Supports templates with <variable> placeholders that are substituted
     from PositivePrompt and NegativePrompt attributes.
-    
+
     Uses angle brackets <> to avoid conflicts with comfyui-dynamic-prompts module
     which uses {}, __term__, $, (), | and other symbols.
     """
@@ -35,7 +36,7 @@ class TemplateParser:
 
         Raises:
             ValueError: If template is None or not a string
-            
+
         Example:
             >>> TemplateParser.find_placeholders("A <age> person")
             ['age']
@@ -46,13 +47,12 @@ class TemplateParser:
     @staticmethod
     def parse_template(
         template: str,
-        prompt_map: PositivePrompt|NegativePrompt,
+        prompt_map: PositivePrompt | NegativePrompt,
         allow_missing: bool = False,
-        default_value: str = "[MISSING]",
     ) -> str:
         """
         Parse a template string with variable substitution from prompt objects.
-        
+
         Replaces <variable> placeholders with values from prompt attributes.
 
         Args:
@@ -67,14 +67,14 @@ class TemplateParser:
 
         Raises:
             ValueError: If allow_missing=False and a variable is not found
-            
+
         Example:
             >>> pos = PositivePrompt()
             >>> pos.age = "young"
             >>> TemplateParser.parse_template("A <age> person", pos)
             'A young person'
         Parses a template string with variable substitution from prompt objects.
-        
+
         Replaces <variable> placeholders with values from prompt attributes.
 
         Args:
@@ -89,60 +89,58 @@ class TemplateParser:
 
         Raises:
             ValueError: If allow_missing=False and a variable is not found
-            
+
         Example:
             >>> pos = PositivePrompt()
             >>> pos.age = "young"
             >>> TemplateParser.parse_template("A <age> person", pos)
             'A young person'
         """
-        
+
         result: str = template
         placeholders = TemplateParser.find_placeholders(template)
 
         for placeholder in placeholders:
             # Try to get from positive prompt first
             value: Optional[str] = None
-            
+
             if hasattr(prompt_map, placeholder):
                 value = getattr(prompt_map, placeholder)
-            
+
             if value is None:
                 if allow_missing:
                     # Use default value for missing variables
-                    value = default_value
+                    value = ""
                 else:
-                    raise ValueError(f"Variable '{placeholder}' not found in prompts")
+                    value = "<MISSING" + placeholder + " " + ">"
 
             # Replace placeholder with value (using <> syntax)
             result = result.replace(f"<{placeholder}>", str(value))
+            result=" ".join(result.split())
 
         return result
 
+    # @staticmethod
+    # def get_required_variables(template: str) -> List[str]:
+    #     """
+    #     Get list of required variables from a template.
 
-    @staticmethod
-    def get_required_variables(template: str) -> List[str]:
-        """
-        Get list of required variables from a template.
+    #     Args:
+    #         template: Template string with placeholders
 
-        Args:
-            template: Template string with placeholders
+    #     Returns:
+    #         List of required variable names (no duplicates)
 
-        Returns:
-            List of required variable names (no duplicates)
+    #     Raises:
+    #         ValueError: If template is not a string
+    #     """
 
-        Raises:
-            ValueError: If template is not a string
-        """
-        if not isinstance(template, str):
-            raise ValueError("Template must be a string")
-
-        placeholders = TemplateParser.find_placeholders(template)
-        # Remove duplicates while preserving order
-        seen = set()
-        unique = []
-        for p in placeholders:
-            if p not in seen:
-                seen.add(p)
-                unique.append(p)
-        return unique
+    #     placeholders = TemplateParser.find_placeholders(template)
+    #     # Remove duplicates while preserving order
+    #     seen: Set[str] = set()
+    #     # unique = []
+    #     for p in placeholders:
+    #         if p not in seen:
+    #             seen.add(p)
+    #             # unique.append(p)
+    #     return list(seen)

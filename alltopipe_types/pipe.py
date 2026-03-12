@@ -27,6 +27,8 @@ class Pipe:
         image_config: Optional[ImageConfig] = None,
         positive_prompt: Optional[PositivePrompt] = None,
         negative_prompt: Optional[NegativePrompt] = None,
+        companion_model_data: Optional[Dict[str, Any]] = None,
+        companion_lora_data: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """
         Initialize Pipe container.
@@ -50,6 +52,5 @@ class Pipe:
             negative_prompt if negative_prompt is not None else NegativePrompt()
         )
         # Companion file data from models/LoRAs
-        self.companion_model_data: Optional[Dict[str, Any]] = None
-        self.companion_lora_data: Optional[List[Dict[str, Any]]] = None
-
+        self.companion_model_data = companion_model_data
+        self.companion_lora_data = companion_lora_data

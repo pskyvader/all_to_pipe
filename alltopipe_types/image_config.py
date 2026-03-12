@@ -1,20 +1,10 @@
-"""
-ImageConfig type and processor for All-to-Pipe.
-
-Handles image dimensions, batch size, and latent generation.
-"""
-
-from typing import Optional, Any, Tuple
+from typing import Optional, Any, Dict, Tuple
 import random
 import torch
+import comfy.model_management
 
 
 class ImageConfig:
-    """
-    Image configuration for generation.
-    Specifies dimensions, batch size, and noise parameters.
-    """
-
     def __init__(
         self,
         width: int,
@@ -22,116 +12,79 @@ class ImageConfig:
         batch_size: int,
         noise: float = 1.0,
         color_code: Optional[str] = None,
+        image: Optional[torch.Tensor] = None,
     ) -> None:
         """
-        Initialize ImageConfig.
-
-        Args:
-            width: Image width in pixels
-            height: Image height in pixels
-            batch_size: Number of images in batch
-            noise: Noise level (0.0-1.0 percentage)
-            color_code: Hex color code (e.g., "#FF0000") or None for random
+        Image configuration for generation.
+        Specifies dimensions, batch size, and noise parameters.
         """
         self.width: int = width
         self.height: int = height
         self.batch_size: int = batch_size
-        self.noise: float = max(0.0, min(1.0, noise))  # Clamp 0-1
+        self.noise: float = max(0.0, min(1.0, noise))
         self.color_code: Optional[str] = color_code
-
+        self.image: Optional[torch.Tensor] = image
 
 class ImageConfigProcessor:
-    """
-    Processor for ImageConfig operations.
-    Handles creation of initial noisy latent images.
-    """
-
     @staticmethod
-    def create_noisy_latent(
-        image_config: ImageConfig,
-        seed: int,
-    ) -> Optional[Any]:
+    def create_noisy_image(image_config: ImageConfig, seed: int|None) -> torch.Tensor:
         """
-        Create a batch of noisy latent images based on config.
-
-        Args:
-            image_config: ImageConfig instance with dimensions and noise settings
-            seed: Random seed for reproducibility
-
-        Returns:
-            Latent tensor ready for KSampler denoise
-            or None if creation fails
-
-        Raises:
-            ValueError: If image_config is invalid
+        Create a batch of noisy images based on config (Pixel Space).
         """
-        if image_config is None:
-            raise ValueError("ImageConfig cannot be None")
-
         if image_config.width <= 0 or image_config.height <= 0:
             raise ValueError("Width and height must be positive")
 
         if image_config.batch_size <= 0:
             raise ValueError("Batch size must be positive")
+        if seed:
+            torch.manual_seed(seed)
+            random.seed(seed)
+        device: torch.device = comfy.model_management.get_torch_device()
 
-        # Set random seed for reproducibility
-        torch.manual_seed(seed)
-        random.seed(seed)
+        color_vec: torch.Tensor = ImageConfigProcessor.get_color_from_code(
+            image_config.color_code, device="cpu"
+        )
+        
+        color_bias: torch.Tensor = color_vec.view(1, 3, 1, 1).expand(
+            image_config.batch_size, 3, image_config.height, image_config.width
+        ).to(device)
 
-        # Create noisy latent tensor
-        # Latent space is 1/8 the size of the image (height//8, width//8)
-        latent_height = image_config.height // 8
-        latent_width = image_config.width // 8
+        noise_tensor: torch.Tensor = torch.randn(
+            (image_config.batch_size, 3, image_config.height, image_config.width), 
+            device=device
+        )
+        
+        noise_tensor = torch.clamp((noise_tensor * 0.5) + 0.5, 0.0, 1.0)
 
-        # Create noisy latent with specified noise level
-        # noise=1.0 means full noise, noise=0.0 means no noise
-        noisy_latent = torch.randn(
-            (image_config.batch_size, 4, latent_height, latent_width)
-        ) * image_config.noise
+        image_samples: torch.Tensor = (color_bias * (1.0 - image_config.noise)) + (
+            noise_tensor * image_config.noise
+        )
 
-        # Return in the ComfyUI latent format
-        return {
-            "samples": noisy_latent,
-            "downscale_ratio_spacial": 8
-        }
+        return image_samples.permute(0, 2, 3, 1)
 
     @staticmethod
-    def get_color_from_code(color_code: Optional[str]) -> Tuple[int, int, int]:
+    def get_color_from_code(
+        color_code: Optional[str], device: str = "cpu"
+    ) -> torch.Tensor:
         """
-        Parse hex color code to RGB tuple.
-
-        Args:
-            color_code: Hex color code like "#FF0000" or None for random
-
-        Returns:
-            Tuple of (R, G, B) values (0-255)
-
-        Raises:
-            ValueError: If color code format is invalid
+        Parses hex color and returns a normalized 3-channel RGB vector.
         """
         if color_code is None:
-            # Random color
-            return (
-                random.randint(0, 255),
-                random.randint(0, 255),
-                random.randint(0, 255),
-            )
+            r, g, b = [random.randint(0, 255) for _ in range(3)]
+        else:
+            hex_val: str = color_code.strip().lstrip("#")
 
-        if not isinstance(color_code, str):
-            raise ValueError("Color code must be a string or None")
+            if len(hex_val) == 3:
+                hex_val = "".join([c * 2 for c in hex_val])
 
-        color_code = color_code.strip()
-        if not color_code.startswith("#"):
-            raise ValueError("Color code must start with #")
+            if len(hex_val) != 6:
+                raise ValueError(f"Invalid hex color: {color_code}")
 
-        color_code = color_code[1:]
-        if len(color_code) != 6:
-            raise ValueError("Color code must be 6 hex characters")
+            try:
+                r: int = int(hex_val[0:2], 16)
+                g: int = int(hex_val[2:4], 16)
+                b: int = int(hex_val[4:6], 16)
+            except ValueError:
+                raise ValueError(f"Could not parse hex color: {color_code}")
 
-        try:
-            r: int = int(color_code[0:2], 16)
-            g: int = int(color_code[2:4], 16)
-            b: int = int(color_code[4:6], 16)
-            return (r, g, b)
-        except ValueError:
-            raise ValueError(f"Invalid hex color code: {color_code}")
+        return torch.tensor([r / 255.0, g / 255.0, b / 255.0], dtype=torch.float32, device=device)

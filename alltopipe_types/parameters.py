@@ -20,6 +20,7 @@ class Parameters:
         sampler: str,
         scheduler: str,
         seed: int,
+        denoise: float,
     ) -> None:
         """
         Initialize generation parameters.
@@ -36,6 +37,7 @@ class Parameters:
         self.sampler: str = sampler
         self.scheduler: str = scheduler
         self.seed: int = seed
+        self.denoise: float = denoise
 
 
 class ParametersProcessor:
@@ -65,4 +67,5 @@ class ParametersProcessor:
             "sampler_name": parameters.sampler,
             "scheduler": parameters.scheduler,
             "seed": parameters.seed,
+            "denoise": parameters.denoise,
         }

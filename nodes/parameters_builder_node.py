@@ -20,47 +20,6 @@ from ..common.constants import (
 )
 
 
-# def validate_parameters(params: Parameters) -> None:
-#     """
-#     Validate that all sampler parameters are properly defined.
-
-#     Raises:
-#         ValueError: If any parameter is invalid
-#     """
-#     if params is None:
-#         raise ValueError("Parameters cannot be None")
-#     if params.steps is None:
-#         raise ValueError("steps is required but not set")
-#     if not isinstance(params.steps, int) or params.steps < MIN_STEPS or params.steps > MAX_STEPS:
-#         raise ValueError(
-#             f"steps must be an integer between {MIN_STEPS} and {MAX_STEPS}, got {params.steps}"
-#         )
-#     if params.cfg is None:
-#         raise ValueError("cfg is required but not set")
-#     if not isinstance(params.cfg, (int, float)) or params.cfg < MIN_CFG or params.cfg > MAX_CFG:
-#         raise ValueError(
-#             f"cfg must be a number between {MIN_CFG} and {MAX_CFG}, got {params.cfg}"
-#         )
-#     if params.sampler is None:
-#         raise ValueError("sampler is required but not set")
-#     if not isinstance(params.sampler, str) or (params.sampler != "RANDOM" and params.sampler not in SUPPORTED_SAMPLERS):
-#         raise ValueError(
-#             f"sampler must be one of {SUPPORTED_SAMPLERS} or 'RANDOM', got {params.sampler}"
-#         )
-#     if params.scheduler is None:
-#         raise ValueError("scheduler is required but not set")
-#     if not isinstance(params.scheduler, str) or (params.scheduler != "RANDOM" and params.scheduler not in SUPPORTED_SCHEDULERS):
-#         raise ValueError(
-#             f"scheduler must be one of {SUPPORTED_SCHEDULERS} or 'RANDOM', got {params.scheduler}"
-#         )
-#     if params.seed is None:
-#         raise ValueError("seed is required but not set")
-#     if not isinstance(params.seed, int) or params.seed < MIN_SEED or params.seed > MAX_SEED:
-#         raise ValueError(
-#             f"seed must be an integer between {MIN_SEED} and {MAX_SEED}, got {params.seed}"
-#         )
-
-
 class ParametersBuilderNode:
     """
     Builds and attaches sampler parameters to the Pipe.
@@ -83,6 +42,7 @@ class ParametersBuilderNode:
         sampler: str = "euler",
         scheduler: str = "normal",
         seed: int = 0,
+        denoise: float = 1.0,
     ) -> Tuple[Pipe]:
         """
         Execute the node and build parameters for the pipe.
@@ -118,6 +78,7 @@ class ParametersBuilderNode:
             sampler=selected_sampler,
             scheduler=selected_scheduler,
             seed=seed,
+            denoise=denoise,
         )
         # validate_parameters(parameters)
 
@@ -151,6 +112,10 @@ class ParametersBuilderNode:
                 "sampler": (tuple(sampler_options),),
                 "scheduler": (tuple(scheduler_options),),
                 "seed": ("INT", {"default": 0, "min": MIN_SEED, "max": MAX_SEED}),
+                "denoise": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0, "max": 1, "step": 0.01},
+                ),
             },
         }
 

@@ -4,11 +4,20 @@ All-to-Pipe utils module.
 Utility functions for common operations across nodes.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 import copy
-from ..alltopipe_types import Pipe, Model, LoraSpec, Parameters, ImageConfig, PositivePrompt, NegativePrompt
+from ..alltopipe_types import (
+    Pipe,
+    Model,
+    LoraSpec,
+    Parameters,
+    ImageConfig,
+    PositivePrompt,
+    NegativePrompt,
+)
 
-#TODO: question, is it really necessary? isnt comfy supposed to already manage that the nodes are immutable?
+# TODO: question, is it really necessary? isnt comfy supposed to already manage that the nodes are immutable?
+
 
 def deep_copy_pipe(pipe: Pipe | None) -> Pipe:
     """
@@ -51,6 +60,7 @@ def deep_copy_pipe(pipe: Pipe | None) -> Pipe:
             sampler=pipe.parameters.sampler,
             scheduler=pipe.parameters.scheduler,
             seed=pipe.parameters.seed,
+            denoise=pipe.parameters.denoise,
         )
 
     # Deep copy image config
@@ -90,7 +100,7 @@ def deep_copy_pipe(pipe: Pipe | None) -> Pipe:
     # Deep copy companion data
     if pipe.companion_model_data is not None:
         new_pipe.companion_model_data = copy.deepcopy(pipe.companion_model_data)
-    
+
     if pipe.companion_lora_data is not None:
         new_pipe.companion_lora_data = copy.deepcopy(pipe.companion_lora_data)
 
