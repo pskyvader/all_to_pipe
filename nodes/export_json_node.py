@@ -60,6 +60,8 @@ class ExportJsonNode:
             if pipe.model is not None:
                 json_output["model"] = pipe.model.name
                 json_output["model_subfolder"] = pipe.model.subfolder
+                json_output["clip_skip"] = pipe.model.clip_skip
+
         if loras:
             lora_data: List[Dict[str, Any]] = [
                 {
@@ -71,6 +73,8 @@ class ExportJsonNode:
                 for lora in pipe.loras
             ]
             json_output["loras"] = lora_data
+            json_output["lora"] = lora_data[0]["name"]
+            json_output["lora_weight"] = lora_data[0]["weight"]
 
         if parameters:
             if pipe.parameters is not None:
@@ -79,6 +83,7 @@ class ExportJsonNode:
                 json_output["sampler"] = pipe.parameters.sampler
                 json_output["scheduler"] = pipe.parameters.scheduler
                 json_output["seed"] = pipe.parameters.seed
+                json_output["denoise"] = pipe.parameters.denoise
 
         if image_config:
             if pipe.image_config is not None:
@@ -86,7 +91,7 @@ class ExportJsonNode:
                 json_output["width"] = pipe.image_config.width
                 json_output["height"] = pipe.image_config.height
                 json_output["batch_size"] = pipe.image_config.batch_size
-                json_output["noise"] = pipe.image_config.noise
+                json_output["image_noise"] = pipe.image_config.noise
                 if pipe.image_config.color_code is not None:
                     json_output["color_code"] = pipe.image_config.color_code
 

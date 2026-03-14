@@ -45,6 +45,7 @@ class ExportTextNode:
         "INT",
         "INT",
         "INT",
+        "FLOAT",
     )
 
     RETURN_NAMES = (
@@ -66,6 +67,7 @@ class ExportTextNode:
         "width",
         "height",
         "batch_size",
+        "image_noise",
     )
 
     FUNCTION = "execute"
@@ -99,6 +101,7 @@ class ExportTextNode:
         int,
         int,
         int,
+        float,
     ]:
 
         validate_pipe(pipe)
@@ -194,6 +197,11 @@ class ExportTextNode:
             if image_config
             else -1
         )
+        output_image_noise = (
+            (pipe.image_config.noise if pipe.image_config else -1)
+            if image_config
+            else -1
+        )
 
         return (
             output_model_name,
@@ -214,4 +222,5 @@ class ExportTextNode:
             output_width,
             output_height,
             output_batch_size,
+            output_image_noise,
         )

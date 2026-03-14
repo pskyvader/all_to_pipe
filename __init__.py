@@ -7,7 +7,7 @@ containing models, LoRAs, parameters, and prompt structures.
 
 from typing import Dict, Type, Any
 
-from .nodes.pipe_node import PipeNode
+from .nodes.update_pipe_node import UpdatePipeNode
 from .nodes.positive_prompt_node import PositivePromptNode
 from .nodes.negative_prompt_node import NegativePromptNode
 from .nodes.model_node import ModelNode
@@ -18,10 +18,12 @@ from .nodes.template_node import TemplateNode
 from .nodes.export_node import ExportNode
 from .nodes.export_json_node import ExportJsonNode
 from .nodes.export_text_node import ExportTextNode
+from .nodes.export_single_node import ExportSingleNode
 
 # Node class mappings for ComfyUI registration
 NODE_CLASS_MAPPINGS: Dict[str, Type[Any]] = {
-    "AllToPipe_Create": PipeNode,
+    "AllToPipe_Update": UpdatePipeNode,
+    "AllToPipe_ExportSingle": ExportSingleNode,
     "AllToPipe_PositivePrompt": PositivePromptNode,
     "AllToPipe_NegativePrompt": NegativePromptNode,
     "AllToPipe_Model": ModelNode,
@@ -36,7 +38,8 @@ NODE_CLASS_MAPPINGS: Dict[str, Type[Any]] = {
 
 # Human-readable display name mappings
 NODE_DISPLAY_NAME_MAPPINGS: Dict[str, str] = {
-    "AllToPipe_Create": "Create Pipe",
+    "AllToPipe_Update": "Update Pipe",
+    "AllToPipe_ExportSingle": "Export single",
     "AllToPipe_PositivePrompt": "Positive Prompt",
     "AllToPipe_NegativePrompt": "Negative Prompt",
     "AllToPipe_Model": "Model",

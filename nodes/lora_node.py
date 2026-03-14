@@ -188,6 +188,10 @@ class LoraNode:
                 new_pipe.image_config = CompanionLoader.apply_companion_to_image_config(
                     companion, new_pipe.image_config
                 )
+            if companion.clip_skip:
+                new_pipe.model=CompanionLoader.apply_companion_to_model(
+                    companion, new_pipe.model
+                )
 
         new_pipe.loras.append(lora_spec)
 

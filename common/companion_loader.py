@@ -11,8 +11,8 @@ import random
 import logging
 import re
 from dataclasses import dataclass, field
-from ..alltopipe_types.parameters import Parameters
-from ..alltopipe_types.image_config import ImageConfig
+
+from ..alltopipe_types import Model, Parameters, ImageConfig
 
 # Setup logging for companion file warnings
 logger = logging.getLogger(__name__)
@@ -54,6 +54,9 @@ class CompanionFile:
 
     raw_data: Dict[str, Any] = field(default_factory=dict)
     """Raw dictionary data from JSON file."""
+
+    clip_skip: List[int] = field(default_factory=list)
+    """List of clip skip values to randomly select from."""
 
 
 class CompanionLoader:
@@ -315,6 +318,24 @@ class CompanionLoader:
 
         return positive_prompt, negative_prompt
 
+    @staticmethod
+    def apply_companion_to_model(
+        companion: CompanionFile,
+        model: Model,
+    ) -> Model:
+        """
+        Apply companion to model, if applicable."""
+
+        clip_skip = abs(model.clip_skip)
+        if companion.clip_skip:
+            clip_skip = int(
+                CompanionLoader._apply_numeric_value(
+                    companion.clip_skip, clip_skip, "clip_skip"
+                )
+            )
+        model.clip_skip = -abs(clip_skip)
+        return model
+
     # ======================== Helper Methods ========================
 
     @staticmethod
@@ -509,6 +530,13 @@ class CompanionLoader:
             )
             companion.positive_prompt = (
                 pos_data if isinstance(pos_data, list) else [pos_data]
+            )
+
+        # Parse cfg
+        if "clip_skip" in data:
+            clip_skip_data: Any = data["clip_skip"]
+            companion.clip_skip = (
+                clip_skip_data if isinstance(clip_skip_data, list) else [clip_skip_data]
             )
 
         return companion

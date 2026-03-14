@@ -5,9 +5,10 @@ import comfy.sd
 import comfy.model_patcher
 
 class Model:
-    def __init__(self, name: str, subfolder: str = "") -> None:
+    def __init__(self, name: str, subfolder: str,clip_skip:int) -> None:
         self.name: str = name
         self.subfolder: str = subfolder
+        self.clip_skip:int=clip_skip
 
 class ModelProcessor:
     @staticmethod
@@ -27,5 +28,16 @@ class ModelProcessor:
             output_clip=True, 
             embedding_directory=folder_paths.get_folder_paths("embeddings")
         )
+        if not out or not out[0] or not out[1] or not out[2]:
+            raise ValueError(f"Failed to load model from '{ckpt_path}'")
 
-        return (out[0], out[1], out[2])
+
+        output_model,clip,vae= (out[0], out[1], out[2])
+        
+        if model.clip_skip<0:
+            clip:comfy.sd.CLIP=clip.clone()
+            clip.clip_layer(model.clip_skip)
+        else:
+            raise ValueError(f"Invalid clip_skip value: {model.clip_skip}")
+            
+        return (output_model, clip, vae)

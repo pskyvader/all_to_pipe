@@ -37,6 +37,7 @@ class ModelNode:
         model_selection: str = "",
         load_companion: bool = False,
         random_subfolder: str = "all",
+        clip_skip:int=-1
     ) -> Tuple[Pipe]:
         """
         Execute the node and assign a model to the pipe.
@@ -98,7 +99,7 @@ class ModelNode:
             )
 
         # Create and attach the model
-        new_pipe.model = Model(name=model_name, subfolder=model_subfolder)
+        new_pipe.model = Model(name=model_name, subfolder=model_subfolder, clip_skip=clip_skip)
 
         companion = (
             CompanionLoader.load_model_companion(model_name, model_subfolder)
@@ -134,6 +135,10 @@ class ModelNode:
             if companion.resolution:
                 new_pipe.image_config = CompanionLoader.apply_companion_to_image_config(
                     companion, new_pipe.image_config
+                )
+            if companion.clip_skip:
+                new_pipe.model=CompanionLoader.apply_companion_to_model(
+                    companion, new_pipe.model
                 )
 
         return (new_pipe,)
@@ -234,6 +239,7 @@ class ModelNode:
                     if model_subfolders
                     else ("STRING", {"default": "all"})
                 ),
+                "clip_skip": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1, "advanced": True}),
             },
         }
 

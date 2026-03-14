@@ -1,4 +1,4 @@
-# All-to-Pipe
+# All to Pipe
 
 ComfyUI custom nodes to build, manipulate, and export a reusable generation pipeline
 ("pipe") containing models, LoRAs, parameters, and prompt structures.

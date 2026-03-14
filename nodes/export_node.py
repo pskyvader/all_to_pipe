@@ -18,6 +18,7 @@ from ..common.prompt_template import TemplateParser
 from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
 import gc
 import torch
+import comfy.model_management
 
 
 class ExportNode:
@@ -105,7 +106,7 @@ class ExportNode:
         scheduler: str = pipe.parameters.scheduler
         denoise: float = pipe.parameters.denoise
 
-        if not pipe.image_config.image:
+        if not isinstance(pipe.image_config.image, torch.Tensor):
             pipe.image_config.image = ImageConfigProcessor.create_noisy_image(
                 pipe.image_config, seed
             )
@@ -115,12 +116,11 @@ class ExportNode:
             "samples": vae.encode(image[:, :, :, :3])
         }
 
-        #since this node does all at the same time, it's important to clean up
+        # since this node does all at the same time, it's important to clean up
         # the pipe
         del pipe
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        comfy.model_management.soft_empty_cache()
 
         # Return all parameters individually for direct KSampler connection
         # This allows connecting each output directly to KSampler inputs

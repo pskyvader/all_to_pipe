@@ -112,11 +112,17 @@ class TemplateParser:
                     # Use default value for missing variables
                     value = ""
                 else:
-                    value = "<MISSING" + placeholder + " " + ">"
+                    value = "<MISSING " + placeholder + " " + ">"
 
             # Replace placeholder with value (using <> syntax)
             result = result.replace(f"<{placeholder}>", str(value))
-            result=" ".join(result.split())
+
+        result = " ".join(result.split())
+        result = ",".join(result.split(", ,"))
+        result = ",".join(result.split(","))
+        result = re.sub(r",+", ",", result)  # ",," -> ","
+        result = re.sub(r"\s*,\s*", ", ", result)  # "word ,word" -> "word, word"
+        result = result.strip().strip(",")
 
         return result
 

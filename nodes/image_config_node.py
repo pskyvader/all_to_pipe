@@ -5,7 +5,7 @@ Sets image dimensions, batch size, and noise parameters.
 """
 
 from typing import Dict, Any, Tuple, Optional
-from ..alltopipe_types import Pipe, ImageConfig,ImageConfigProcessor
+from ..alltopipe_types import Pipe, ImageConfig, ImageConfigProcessor
 from ..common.utils import deep_copy_pipe
 
 
@@ -55,9 +55,8 @@ class ImageConfigNode:
             noise=noise,
             color_code=color,
         )
-        seed= new_pipe.parameters.seed if new_pipe.parameters else None
-        image_config.image=ImageConfigProcessor.create_noisy_image(image_config, seed)
-
+        seed = new_pipe.parameters.seed if new_pipe.parameters else None
+        image_config.image = ImageConfigProcessor.create_noisy_image(image_config, seed)
 
         new_pipe.image_config = image_config
 
@@ -79,13 +78,15 @@ class ImageConfigNode:
                 "width": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),
-                "noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "noise": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01},
+                ),
                 "color_code": ("STRING", {"default": "", "multiline": False}),
-            }
+            },
         }
 
     RETURN_TYPES: Tuple[str, ...] = ("PIPE",)
     RETURN_NAMES: Tuple[str, ...] = ("pipe",)
     FUNCTION: str = "execute"
     CATEGORY: str = "all-to-pipe"
-

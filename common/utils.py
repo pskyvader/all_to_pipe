@@ -37,7 +37,11 @@ def deep_copy_pipe(pipe: Pipe | None) -> Pipe:
     # Deep copy model
     new_model: Optional[Model] = None
     if pipe.model is not None:
-        new_model = Model(name=pipe.model.name, subfolder=pipe.model.subfolder)
+        new_model = Model(
+            name=pipe.model.name,
+            subfolder=pipe.model.subfolder,
+            clip_skip=pipe.model.clip_skip,
+        )
 
     # Deep copy loras list
     new_loras: List[LoraSpec] = []
@@ -72,6 +76,7 @@ def deep_copy_pipe(pipe: Pipe | None) -> Pipe:
             batch_size=pipe.image_config.batch_size,
             noise=pipe.image_config.noise,
             color_code=pipe.image_config.color_code,
+            image=pipe.image_config.image,
         )
 
     # Deep copy prompts
