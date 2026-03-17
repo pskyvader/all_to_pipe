@@ -1,9 +1,17 @@
 import json
 from typing import Dict, Any, Tuple, List
-from ..alltopipe_types import Pipe
 from ..common.prompt_helpers import prompt_to_string
-from ..common.validators import validate_pipe
-from ..common.prompt_template import TemplateParser
+
+from ..alltopipe_types import (
+    Pipe,
+    Model,
+    Parameters,
+    ImageConfig,
+    PositivePrompt,
+    NegativePrompt,
+    Template,
+    TemplateParser,
+)
 
 
 class ExportTextNode:
@@ -104,8 +112,20 @@ class ExportTextNode:
         float,
     ]:
 
-        validate_pipe(pipe)
-
+        if not isinstance(pipe.model, Model):
+            raise ValueError("Pipe.model must be a Model instance")
+        if not isinstance(pipe.parameters, Parameters):
+            raise ValueError("Pipe.parameters must be a Parameters instance")
+        if not isinstance(pipe.image_config, ImageConfig):
+            raise ValueError("Pipe.image_config must be an ImageConfig instance")
+        if not isinstance(pipe.positive_prompt, PositivePrompt):
+            raise ValueError("Pipe.positive_prompt must be a PositivePrompt instance")
+        if not isinstance(pipe.negative_prompt, NegativePrompt):
+            raise ValueError("Pipe.negative_prompt must be a NegativePrompt instance")
+        if not isinstance(pipe.positive_template, Template):
+            raise ValueError("Pipe.positive_template must exist")
+        if not isinstance(pipe.negative_template, Template):
+            raise ValueError("Pipe.negative_template must exist")
         # 1. Model Data
         output_model_name = (pipe.model.name if pipe.model else "") if model else ""
         output_model_subfolder = (
@@ -155,27 +175,28 @@ class ExportTextNode:
         output_positive_prompt = ""
         output_negative_prompt = ""
         if prompt_text:
-            output_positive_prompt = TemplateParser.parse_template(
-                pipe.positive_prompt.template,
-                pipe.positive_prompt,
-                allow_missing=pipe.positive_prompt.allow_missing,
-            )
-            output_negative_prompt = TemplateParser.parse_template(
-                pipe.negative_prompt.template,
-                pipe.negative_prompt,
-                allow_missing=pipe.negative_prompt.allow_missing,
-            )
+            if pipe.positive_template.parsed_template is None:
+                pipe.positive_template.parsed_template = TemplateParser.parse_template(
+                    pipe.positive_template.text,
+                    pipe.positive_prompt,
+                    pipe.positive_template.allow_missing,
+                )
+            output_positive_prompt = pipe.positive_template.parsed_template
+
+            if pipe.negative_template.parsed_template is None:
+                pipe.negative_template.parsed_template = TemplateParser.parse_template(
+                    pipe.negative_template.text,
+                    pipe.negative_prompt,
+                    pipe.negative_template.allow_missing,
+                )
+            output_negative_prompt = pipe.negative_template.parsed_template
 
         # 5. Prompt Map (Converted to JSON Strings)
         output_positive_map_json = "{}"
         output_negative_map_json = "{}"
         if prompt_map:
-            pos_data = (
-                prompt_to_string(pipe.positive_prompt) if pipe.positive_prompt else {}
-            )
-            neg_data = (
-                prompt_to_string(pipe.negative_prompt) if pipe.negative_prompt else {}
-            )
+            pos_data = prompt_to_string(pipe.positive_prompt)
+            neg_data = prompt_to_string(pipe.negative_prompt)
 
             # Ensure we return a valid JSON string even if empty
             output_positive_map_json = json.dumps(pos_data) if pos_data else "{}"

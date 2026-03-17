@@ -10,6 +10,7 @@ from .parameters import Parameters, ParametersProcessor
 from .image_config import ImageConfig, ImageConfigProcessor
 from .prompts import PositivePrompt, NegativePrompt, PromptProcessor
 from .pipe import Pipe
+from .template import Template, TemplateParser
 
 __all__: list[str] = [
     "Model",
@@ -24,4 +25,6 @@ __all__: list[str] = [
     "NegativePrompt",
     "PromptProcessor",
     "Pipe",
+    "Template",
+    "TemplateParser",
 ]

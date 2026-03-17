@@ -6,7 +6,7 @@ Populates the positive prompt container.
 
 from typing import Dict, Any, Tuple, Optional
 from ..alltopipe_types import Pipe, PositivePrompt
-from ..common.utils import deep_copy_pipe
+# from ..common.utils import deep_copy_pipe
 
 
 class PositivePromptNode:
@@ -59,7 +59,8 @@ class PositivePromptNode:
         Raises:
             ValueError: If feature is not allowed
         """
-        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe if pipe is not None else Pipe()
 
         if new_pipe.positive_prompt is None:
             new_pipe.positive_prompt = PositivePrompt()

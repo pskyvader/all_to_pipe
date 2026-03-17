@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, Tuple
+from typing import Optional, Dict
 import random
 import torch
 import comfy.model_management
@@ -13,6 +13,7 @@ class ImageConfig:
         noise: float = 1.0,
         color_code: Optional[str] = None,
         image: Optional[torch.Tensor] = None,
+        latent: Optional[Dict[str, torch.Tensor | None]] = None,
     ) -> None:
         """
         Image configuration for generation.
@@ -24,10 +25,12 @@ class ImageConfig:
         self.noise: float = max(0.0, min(1.0, noise))
         self.color_code: Optional[str] = color_code
         self.image: Optional[torch.Tensor] = image
+        self.latent: Optional[Dict[str, torch.Tensor | None]] = latent
+
 
 class ImageConfigProcessor:
     @staticmethod
-    def create_noisy_image(image_config: ImageConfig, seed: int|None) -> torch.Tensor:
+    def create_noisy_image(image_config: ImageConfig, seed: int | None) -> torch.Tensor:
         """
         Create a batch of noisy images based on config (Pixel Space).
         """
@@ -40,20 +43,24 @@ class ImageConfigProcessor:
             torch.manual_seed(seed)
             random.seed(seed)
         device: torch.device = comfy.model_management.get_torch_device()
+        if not isinstance(device, torch.device):
+            raise ValueError("Device Not valid")
 
         color_vec: torch.Tensor = ImageConfigProcessor.get_color_from_code(
             image_config.color_code, device="cpu"
         )
-        
-        color_bias: torch.Tensor = color_vec.view(1, 3, 1, 1).expand(
-            image_config.batch_size, 3, image_config.height, image_config.width
-        ).to(device)
+
+        color_bias: torch.Tensor = (
+            color_vec.view(1, 3, 1, 1)
+            .expand(image_config.batch_size, 3, image_config.height, image_config.width)
+            .to(device)
+        )
 
         noise_tensor: torch.Tensor = torch.randn(
-            (image_config.batch_size, 3, image_config.height, image_config.width), 
-            device=device
+            (image_config.batch_size, 3, image_config.height, image_config.width),
+            device=device,
         )
-        
+
         noise_tensor = torch.clamp((noise_tensor * 0.5) + 0.5, 0.0, 1.0)
 
         image_samples: torch.Tensor = (color_bias * (1.0 - image_config.noise)) + (
@@ -87,4 +94,6 @@ class ImageConfigProcessor:
             except ValueError:
                 raise ValueError(f"Could not parse hex color: {color_code}")
 
-        return torch.tensor([r / 255.0, g / 255.0, b / 255.0], dtype=torch.float32, device=device)
+        return torch.tensor(
+            [r / 255.0, g / 255.0, b / 255.0], dtype=torch.float32, device=device
+        )

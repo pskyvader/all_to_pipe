@@ -7,7 +7,7 @@ Builds and attaches sampler parameters to the Pipe.
 from typing import Dict, Any, Tuple, Optional
 import random
 from ..alltopipe_types import Pipe, Parameters
-from ..common.utils import deep_copy_pipe
+# from ..common.utils import deep_copy_pipe
 from ..common.constants import (
     SUPPORTED_SAMPLERS,
     SUPPORTED_SCHEDULERS,
@@ -59,7 +59,8 @@ class ParametersBuilderNode:
             Tuple containing the modified Pipe instance
         """
         # Deep copy pipe to avoid modifying the original
-        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe if pipe is not None else Pipe()
 
         # Handle RANDOM sampler selection
         selected_sampler = sampler

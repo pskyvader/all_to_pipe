@@ -40,6 +40,16 @@ class UpdatePipeNode:
             updated_instance = element["class"]()
 
         setattr(updated_instance, element["attr_name"], value)
+
+        if element["attr_name"] == "image":
+            if new_pipe.model is not None and new_pipe.model.cached_model is not None:
+                _, _, vae = new_pipe.model.cached_model
+                updated_instance.latent = {
+                    "samples": vae.encode(updated_instance.image[:, :, :, :3])
+                }
+            else:
+                print("No model found for encoding image")
+
         setattr(new_pipe, pipe_attr, updated_instance)
 
         return (new_pipe,)

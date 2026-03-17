@@ -9,6 +9,29 @@ from typing import Optional, List, Dict, Any, Set
 from ..alltopipe_types import PositivePrompt, NegativePrompt
 
 
+class Template:
+    def __init__(
+        self,
+        template_type: str,
+        placeholders: List[str],
+        text: str,
+        allow_missing: bool,
+    ) -> None:
+
+        if template_type not in ["positive", "negative"]:
+            raise ValueError("template_type must be 'positive' or 'negative'")
+
+        # If template is empty, skip
+        if not text.strip():
+            raise ValueError("template_text cannot be empty")
+
+        self.type: str = template_type
+        self.placeholders: List[str] = placeholders
+        self.text: str = text
+        self.allow_missing: bool = allow_missing
+        self.parsed_template: Optional[str] = None
+
+
 class TemplateParser:
     """
     Parser for prompt templates with variable substitution.

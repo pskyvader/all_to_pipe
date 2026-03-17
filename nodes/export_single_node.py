@@ -14,7 +14,11 @@ class ExportSingleNode:
         "image": {
             "attr_name": "image",  # The attribute inside ImageConfig
             "pipe_key": "image_config",  # The attribute inside Pipe
-        }
+        },
+        "latent": {
+            "attr_name": "latent",  # The attribute inside ImageConfig
+            "pipe_key": "image_config",  # The attribute inside Pipe
+        },
     }
 
     def __init__(self) -> None:
@@ -31,7 +35,7 @@ class ExportSingleNode:
         export_value = getattr(export_object, element["attr_name"], None)
         if export_value is None:
             raise ValueError(
-                f"attribute {element['attr_name']} in {element['pipe_key']}  is None"
+                f"attribute {element['attr_name']} in {element['pipe_key']} is None"
             )
 
         return (export_value,)

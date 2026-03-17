@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Any
 import folder_paths
 import comfy.utils
 import comfy.model_patcher
@@ -18,9 +18,22 @@ class LoraSpec:
         self.subfolder: str = subfolder
         self.weight: float = weight
         self.clip_weight: float = clip_weight
+        self.cached_lora: Optional[Any] = None
 
 
 class LoraProcessor:
+    @staticmethod
+    def load_lora(lora: LoraSpec) -> Any:
+        if not lora.cached_lora:
+            target_path = os.path.join(lora.subfolder, lora.name)
+            lora_path = folder_paths.get_full_path("loras", target_path)
+
+            if not lora_path:
+                raise FileNotFoundError(f"LoRA '{target_path}' not found.")
+
+            return comfy.utils.load_torch_file(lora_path)
+        return lora.cached_lora
+
     @staticmethod
     def apply_lora(
         model: comfy.model_patcher.ModelPatcher,
@@ -34,16 +47,13 @@ class LoraProcessor:
         patched_clip = clip
 
         for lora in loras:
-            target_path = os.path.join(lora.subfolder, lora.name)
-            lora_path = folder_paths.get_full_path("loras", target_path)
-
-            if not lora_path:
-                raise FileNotFoundError(f"LoRA '{target_path}' not found.")
-
-            lora_weights = comfy.utils.load_torch_file(lora_path)
-
+            lora_weights = LoraProcessor.load_lora(lora)
             patched_model, patched_clip = comfy.sd.load_lora_for_models(
-                patched_model, patched_clip, lora_weights, lora.weight, lora.clip_weight
+                patched_model,
+                patched_clip,
+                lora_weights,
+                lora.weight,
+                lora.clip_weight,
             )
 
         return (patched_model, patched_clip)

@@ -7,8 +7,14 @@ Assigns a model to an existing Pipe with companion file loading and parameter ad
 from typing import Dict, Any, Tuple, Optional, List
 import os
 import random
-from ..alltopipe_types import Pipe, Model, PositivePrompt, NegativePrompt
-from ..common.utils import deep_copy_pipe
+from ..alltopipe_types import (
+    Pipe,
+    Model,
+    PositivePrompt,
+    NegativePrompt,
+    ModelProcessor,
+)
+# from ..common.utils import deep_copy_pipe
 from ..common.file_helpers import (
     discover_models_in_subfolder,
 )
@@ -37,7 +43,7 @@ class ModelNode:
         model_selection: str = "",
         load_companion: bool = False,
         random_subfolder: str = "all",
-        clip_skip:int=-1
+        clip_skip: int = -1,
     ) -> Tuple[Pipe]:
         """
         Execute the node and assign a model to the pipe.
@@ -51,7 +57,8 @@ class ModelNode:
         Returns:
             Tuple containing the modified Pipe instance
         """
-        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe if pipe is not None else Pipe()
 
         if not new_pipe.parameters:
             raise ValueError("Pipe Needs Parameters before loading a model")
@@ -99,7 +106,9 @@ class ModelNode:
             )
 
         # Create and attach the model
-        new_pipe.model = Model(name=model_name, subfolder=model_subfolder, clip_skip=clip_skip)
+        new_pipe.model = Model(
+            name=model_name, subfolder=model_subfolder, clip_skip=clip_skip
+        )
 
         companion = (
             CompanionLoader.load_model_companion(model_name, model_subfolder)
@@ -137,9 +146,11 @@ class ModelNode:
                     companion, new_pipe.image_config
                 )
             if companion.clip_skip:
-                new_pipe.model=CompanionLoader.apply_companion_to_model(
+                new_pipe.model = CompanionLoader.apply_companion_to_model(
                     companion, new_pipe.model
                 )
+
+        new_pipe.model.cached_model = ModelProcessor.load_model(new_pipe.model)
 
         return (new_pipe,)
 
@@ -239,7 +250,10 @@ class ModelNode:
                     if model_subfolders
                     else ("STRING", {"default": "all"})
                 ),
-                "clip_skip": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1, "advanced": True}),
+                "clip_skip": (
+                    "INT",
+                    {"default": -1, "min": -24, "max": -1, "step": 1, "advanced": True},
+                ),
             },
         }
 

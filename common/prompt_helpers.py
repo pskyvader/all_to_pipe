@@ -25,8 +25,6 @@ def prompt_to_string(prompt: Union[PositivePrompt, NegativePrompt]) -> Dict[str,
     Raises:
         ValueError: If prompt is None
     """
-    if prompt is None:
-        raise ValueError("Prompt cannot be None")
 
     prompt_dict: Dict[str, str] = {}
 

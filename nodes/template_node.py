@@ -5,9 +5,15 @@ Assigns and validates template strings for dynamic prompt parsing.
 """
 
 from typing import Dict, Any, Tuple, Optional
-from ..alltopipe_types import Pipe, PositivePrompt, NegativePrompt
-from ..common.utils import deep_copy_pipe
-from ..common.prompt_template import TemplateParser
+from ..alltopipe_types import (
+    Pipe,
+    # PositivePrompt,
+    # NegativePrompt,
+    Template,
+    TemplateParser,
+)
+
+# from ..common.utils import deep_copy_pipe
 
 
 class TemplateNode:
@@ -78,53 +84,31 @@ class TemplateNode:
         Raises:
             ValueError: If template_type is invalid
         """
-        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
-
-        if template_type not in ["positive", "negative"]:
-            raise ValueError("template_type must be 'positive' or 'negative'")
-
-        # If template is empty, skip
-        if not template_text or not template_text.strip():
-            raise ValueError("template_text cannot be empty")
-
+        # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe if pipe is not None else Pipe()
         # Validate template syntax (find placeholders)
         placeholders = TemplateParser.find_placeholders(template_text)
+        template = Template(template_type, placeholders, template_text, allow_missing)
 
         if template_type == "positive":
             # Store template in positive prompt
-            if new_pipe.positive_prompt is None:
-                new_pipe.positive_prompt = PositivePrompt()
-
-            # Store template as a custom attribute
-            new_pipe.positive_prompt.template = template_text
-
-            # Also store required variables for reference
-            new_pipe.positive_prompt.template_variables = placeholders
-            new_pipe.positive_prompt.allow_missing = allow_missing
-
-            parsed_template = TemplateParser.parse_template(
-                new_pipe.positive_prompt.template,
-                new_pipe.positive_prompt,
-                allow_missing=new_pipe.positive_prompt.allow_missing,
-                # default_value="",
-            )
+            if new_pipe.positive_prompt is not None:
+                template.parsed_template = TemplateParser.parse_template(
+                    template_text,
+                    new_pipe.positive_prompt,
+                    allow_missing,
+                )
+            new_pipe.positive_template = template
 
         else:  # negative
             # Store template in negative prompt
-            if new_pipe.negative_prompt is None:
-                new_pipe.negative_prompt = NegativePrompt()
+            if new_pipe.negative_prompt is not None:
+                template.parsed_template = TemplateParser.parse_template(
+                    template_text,
+                    new_pipe.negative_prompt,
+                    allow_missing,
+                )
 
-            # Store template as a custom attribute
-            new_pipe.negative_prompt.template = template_text
+            new_pipe.negative_template = template
 
-            # Also store required variables for reference
-            new_pipe.negative_prompt.template_variables = placeholders
-            new_pipe.negative_prompt.allow_missing = allow_missing
-            parsed_template = TemplateParser.parse_template(
-                new_pipe.negative_prompt.template,
-                new_pipe.negative_prompt,
-                allow_missing=new_pipe.positive_prompt.allow_missing,
-                # default_value="",
-            )
-
-        return (new_pipe, parsed_template)
+        return (new_pipe, template.parsed_template if template.parsed_template else "")

@@ -5,11 +5,21 @@ Exports Pipe as plain serializable data.
 """
 
 import json
-from typing import Dict, Any, Tuple, Optional, List
-from ..alltopipe_types import Pipe
+from typing import Dict, Any, Tuple, List
+
+
+from ..alltopipe_types import (
+    Pipe,
+    Model,
+    Parameters,
+    ImageConfig,
+    PositivePrompt,
+    NegativePrompt,
+    Template,
+    TemplateParser,
+)
+
 from ..common.prompt_helpers import prompt_to_string
-from ..common.validators import validate_pipe
-from ..common.prompt_template import TemplateParser
 
 
 class ExportJsonNode:
@@ -49,18 +59,29 @@ class ExportJsonNode:
         Raises:
             ValueError: If pipe is invalid
         """
-        # Validate the pipe
-        validate_pipe(pipe)
+        if not isinstance(pipe.model, Model):
+            raise ValueError("Pipe.model must be a Model instance")
+        if not isinstance(pipe.parameters, Parameters):
+            raise ValueError("Pipe.parameters must be a Parameters instance")
+        if not isinstance(pipe.image_config, ImageConfig):
+            raise ValueError("Pipe.image_config must be an ImageConfig instance")
+        if not isinstance(pipe.positive_prompt, PositivePrompt):
+            raise ValueError("Pipe.positive_prompt must be a PositivePrompt instance")
+        if not isinstance(pipe.negative_prompt, NegativePrompt):
+            raise ValueError("Pipe.negative_prompt must be a NegativePrompt instance")
+        if not isinstance(pipe.positive_template, Template):
+            raise ValueError("Pipe.positive_template must exist")
+        if not isinstance(pipe.negative_template, Template):
+            raise ValueError("Pipe.negative_template must exist")
 
         # Assemble consolidated flat JSON structure
         # All properties at top level for easier consumption
         json_output: Dict[str, Any] = {}
 
         if model:
-            if pipe.model is not None:
-                json_output["model"] = pipe.model.name
-                json_output["model_subfolder"] = pipe.model.subfolder
-                json_output["clip_skip"] = pipe.model.clip_skip
+            json_output["model"] = pipe.model.name
+            json_output["model_subfolder"] = pipe.model.subfolder
+            json_output["clip_skip"] = pipe.model.clip_skip
 
         if loras:
             lora_data: List[Dict[str, Any]] = [
@@ -77,56 +98,42 @@ class ExportJsonNode:
             json_output["lora_weight"] = lora_data[0]["weight"]
 
         if parameters:
-            if pipe.parameters is not None:
-                json_output["steps"] = pipe.parameters.steps
-                json_output["cfg"] = pipe.parameters.cfg
-                json_output["sampler"] = pipe.parameters.sampler
-                json_output["scheduler"] = pipe.parameters.scheduler
-                json_output["seed"] = pipe.parameters.seed
-                json_output["denoise"] = pipe.parameters.denoise
+            json_output["steps"] = pipe.parameters.steps
+            json_output["cfg"] = pipe.parameters.cfg
+            json_output["sampler"] = pipe.parameters.sampler
+            json_output["scheduler"] = pipe.parameters.scheduler
+            json_output["seed"] = pipe.parameters.seed
+            json_output["denoise"] = pipe.parameters.denoise
 
         if image_config:
-            if pipe.image_config is not None:
 
-                json_output["width"] = pipe.image_config.width
-                json_output["height"] = pipe.image_config.height
-                json_output["batch_size"] = pipe.image_config.batch_size
-                json_output["image_noise"] = pipe.image_config.noise
-                if pipe.image_config.color_code is not None:
-                    json_output["color_code"] = pipe.image_config.color_code
+            json_output["width"] = pipe.image_config.width
+            json_output["height"] = pipe.image_config.height
+            json_output["batch_size"] = pipe.image_config.batch_size
+            json_output["image_noise"] = pipe.image_config.noise
+            if pipe.image_config.color_code is not None:
+                json_output["color_code"] = pipe.image_config.color_code
 
         if prompt_text:
-            if pipe.positive_prompt is not None:
-                if (
-                    hasattr(pipe.positive_prompt, "template")
-                    and pipe.positive_prompt.template
-                ):
-                    json_output["positive_prompt"] = TemplateParser.parse_template(
-                        pipe.positive_prompt.template,
-                        pipe.positive_prompt,
-                        allow_missing=pipe.positive_prompt.allow_missing,
-                    )
+            if pipe.positive_template.parsed_template is None:
+                pipe.positive_template.parsed_template = TemplateParser.parse_template(
+                    pipe.positive_template.text,
+                    pipe.positive_prompt,
+                    pipe.positive_template.allow_missing,
+                )
+            json_output["positive_prompt"] = pipe.positive_template.parsed_template
 
-            if pipe.negative_prompt is not None:
-                if (
-                    hasattr(pipe.negative_prompt, "template")
-                    and pipe.negative_prompt.template
-                ):
-                    json_output["negative_prompt"] = TemplateParser.parse_template(
-                        pipe.negative_prompt.template,
-                        pipe.negative_prompt,
-                        allow_missing=pipe.negative_prompt.allow_missing,
-                    )
+            if pipe.negative_template.parsed_template is None:
+                pipe.negative_template.parsed_template = TemplateParser.parse_template(
+                    pipe.negative_template.text,
+                    pipe.negative_prompt,
+                    pipe.negative_template.allow_missing,
+                )
+            json_output["negative_prompt"] = pipe.negative_template.parsed_template
 
         if prompt_map:
-            if pipe.positive_prompt is not None:
-                json_output["positive_prompt_map"] = prompt_to_string(
-                    pipe.positive_prompt
-                )
-            if pipe.negative_prompt is not None:
-                json_output["negative_prompt_map"] = prompt_to_string(
-                    pipe.negative_prompt
-                )
+            json_output["positive_prompt_map"] = prompt_to_string(pipe.positive_prompt)
+            json_output["negative_prompt_map"] = prompt_to_string(pipe.negative_prompt)
         if companion_data:
             json_output["companion"] = {}
             if pipe.companion_model_data is not None:

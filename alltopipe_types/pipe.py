@@ -10,6 +10,7 @@ from .lora import LoraSpec
 from .parameters import Parameters
 from .image_config import ImageConfig
 from .prompts import PositivePrompt, NegativePrompt
+from .template import Template
 
 
 class Pipe:
@@ -25,6 +26,8 @@ class Pipe:
         loras: Optional[List[LoraSpec]] = None,
         parameters: Optional[Parameters] = None,
         image_config: Optional[ImageConfig] = None,
+        positive_template: Optional[Template] = None,
+        negative_template: Optional[Template] = None,
         positive_prompt: Optional[PositivePrompt] = None,
         negative_prompt: Optional[NegativePrompt] = None,
         companion_model_data: Optional[Dict[str, Any]] = None,
@@ -45,6 +48,9 @@ class Pipe:
         self.loras: List[LoraSpec] = loras if loras is not None else []
         self.parameters: Optional[Parameters] = parameters
         self.image_config: Optional[ImageConfig] = image_config
+        self.positive_template: Optional[Template] = positive_template
+        self.negative_template: Optional[Template] = negative_template
+
         self.positive_prompt: Optional[PositivePrompt] = (
             positive_prompt if positive_prompt is not None else PositivePrompt()
         )

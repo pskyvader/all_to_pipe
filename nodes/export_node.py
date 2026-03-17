@@ -5,20 +5,27 @@ Resolves Pipe into sampler-ready objects.
 """
 
 from typing import Dict, Any, Tuple
-from ..alltopipe_types import Pipe
-from ..alltopipe_types.model import ModelProcessor
-from ..alltopipe_types.lora import LoraProcessor
-
-from ..alltopipe_types.image_config import ImageConfigProcessor
-from ..alltopipe_types.prompts import PromptProcessor
-from ..common.validators import validate_pipe
-from ..common.prompt_template import TemplateParser
+from ..alltopipe_types import (
+    Pipe,
+    Model,
+    ModelProcessor,
+    LoraProcessor,
+    ImageConfigProcessor,
+    PromptProcessor,
+    Parameters,
+    ImageConfig,
+    PositivePrompt,
+    NegativePrompt,
+    Template,
+    TemplateParser,
+)
 
 
 from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
-import gc
 import torch
-import comfy.model_management
+
+# import gc
+# import comfy.model_management
 
 
 class ExportNode:
@@ -76,27 +83,46 @@ class ExportNode:
         Raises:
             ValueError: If pipe is invalid or incomplete
         """
-        # Validate the pipe has all required fields
-        validate_pipe(pipe)
+        if not isinstance(pipe.model, Model):
+            raise ValueError("Pipe.model must be a Model instance")
+        if not isinstance(pipe.parameters, Parameters):
+            raise ValueError("Pipe.parameters must be a Parameters instance")
+        if not isinstance(pipe.image_config, ImageConfig):
+            raise ValueError("Pipe.image_config must be an ImageConfig instance")
+        if not isinstance(pipe.positive_prompt, PositivePrompt):
+            raise ValueError("Pipe.positive_prompt must be a PositivePrompt instance")
+        if not isinstance(pipe.negative_prompt, NegativePrompt):
+            raise ValueError("Pipe.negative_prompt must be a NegativePrompt instance")
+        if not isinstance(pipe.positive_template, Template):
+            raise ValueError("Pipe.positive_template must exist")
+        if not isinstance(pipe.negative_template, Template):
+            raise ValueError("Pipe.negative_template must exist")
+
         (model, clip, vae) = ModelProcessor.load_model(pipe.model)
 
         # Apply LoRAs if model was loaded and LoRAs are specified
         if pipe.loras:
             model, clip = LoraProcessor.apply_lora(model, clip, pipe.loras)
 
-        parsed_template = TemplateParser.parse_template(
-            pipe.positive_prompt.template,
-            pipe.positive_prompt,
-            allow_missing=pipe.positive_prompt.allow_missing,
+        if pipe.positive_template.parsed_template is None:
+            pipe.positive_template.parsed_template = TemplateParser.parse_template(
+                pipe.positive_template.text,
+                pipe.positive_prompt,
+                pipe.positive_template.allow_missing,
+            )
+        positive_conditioning = PromptProcessor.encode_prompt(
+            pipe.positive_template.parsed_template, clip
         )
-        positive_conditioning = PromptProcessor.encode_prompt(parsed_template, clip)
 
-        parsed_template = TemplateParser.parse_template(
-            pipe.negative_prompt.template,
-            pipe.negative_prompt,
-            allow_missing=pipe.positive_prompt.allow_missing,
+        if pipe.negative_template.parsed_template is None:
+            pipe.negative_template.parsed_template = TemplateParser.parse_template(
+                pipe.negative_template.text,
+                pipe.negative_prompt,
+                pipe.negative_template.allow_missing,
+            )
+        negative_conditioning = PromptProcessor.encode_prompt(
+            pipe.negative_template.parsed_template, clip
         )
-        negative_conditioning = PromptProcessor.encode_prompt(parsed_template, clip)
 
         # Extract all parameters for direct KSampler connection
         seed: int = pipe.parameters.seed
@@ -112,19 +138,21 @@ class ExportNode:
             )
         image = pipe.image_config.image
 
-        latent_image: Dict[str, torch.Tensor] = {
-            "samples": vae.encode(image[:, :, :, :3])
-        }
+        if not isinstance(pipe.image_config.latent, Dict):
+            pipe.image_config.latent = {"samples": vae.encode(image[:, :, :, :3])}
+
+        latent_image = pipe.image_config.latent
 
         # since this node does all at the same time, it's important to clean up
         # the pipe
-        del pipe
-        gc.collect()
-        comfy.model_management.soft_empty_cache()
+        # del pipe
+        # gc.collect()
+        # comfy.model_management.soft_empty_cache()
 
         # Return all parameters individually for direct KSampler connection
         # This allows connecting each output directly to KSampler inputs
         return (
+            pipe,
             model,
             vae,
             clip,
@@ -155,6 +183,7 @@ class ExportNode:
         }
 
     RETURN_TYPES: Tuple[Any, ...] = (
+        "PIPE",
         "MODEL",
         "VAE",
         "CLIP",
@@ -170,6 +199,7 @@ class ExportNode:
         "FLOAT",
     )
     RETURN_NAMES: Tuple[str, ...] = (
+        "Pipe",
         "model",
         "vae",
         "clip",

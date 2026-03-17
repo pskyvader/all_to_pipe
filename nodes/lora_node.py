@@ -7,8 +7,14 @@ Adds one LoRA specification to the Pipe with companion file loading and paramete
 from typing import Dict, Any, Tuple, Optional, List
 import os
 import random
-from ..alltopipe_types import Pipe, LoraSpec, PositivePrompt, NegativePrompt
-from ..common.utils import deep_copy_pipe
+from ..alltopipe_types import (
+    Pipe,
+    LoraSpec,
+    PositivePrompt,
+    NegativePrompt,
+    LoraProcessor,
+)
+# from ..common.utils import deep_copy_pipe
 from ..common.constants import MIN_LORA_WEIGHT, MAX_LORA_WEIGHT
 from ..common.file_helpers import discover_loras_in_subfolder
 from ..common.companion_loader import CompanionLoader
@@ -73,11 +79,11 @@ class LoraNode:
         Returns:
             Tuple containing the modified Pipe instance
         """
-        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
-        
+        # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe if pipe is not None else Pipe()
+
         if not new_pipe.model:
             raise ValueError("Pipe Needs a model before applying loras")
-
 
         # Handle RANDOM selection
         if lora_selection == "RANDOM /":
@@ -161,7 +167,6 @@ class LoraNode:
             if new_pipe.companion_lora_data is None:
                 new_pipe.companion_lora_data = []
             new_pipe.companion_lora_data.append(companion.raw_data)
-            
 
             if companion.positive_prompt:
                 if new_pipe.positive_prompt is None:
@@ -189,10 +194,10 @@ class LoraNode:
                     companion, new_pipe.image_config
                 )
             if companion.clip_skip:
-                new_pipe.model=CompanionLoader.apply_companion_to_model(
+                new_pipe.model = CompanionLoader.apply_companion_to_model(
                     companion, new_pipe.model
                 )
-
+        lora_spec.cached_lora = LoraProcessor.load_lora(lora_spec)
         new_pipe.loras.append(lora_spec)
 
         return (new_pipe,)
@@ -216,7 +221,7 @@ class LoraNode:
 
         try:
             # Walk all subdirectories
-            for root, dirs, files in os.walk(base_path):
+            for root, _, files in os.walk(base_path):
                 for filename in files:
                     if any(filename.lower().endswith(ext) for ext in lora_extensions):
                         # Get relative path from base

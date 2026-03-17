@@ -44,7 +44,8 @@ class ImageConfigNode:
             Tuple containing the modified Pipe instance
         """
         # Deep copy pipe to avoid modifying the original
-        new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe if pipe is not None else Pipe()
 
         # Create and attach image config
         color: Optional[str] = color_code if color_code.strip() else None
@@ -57,6 +58,11 @@ class ImageConfigNode:
         )
         seed = new_pipe.parameters.seed if new_pipe.parameters else None
         image_config.image = ImageConfigProcessor.create_noisy_image(image_config, seed)
+        if new_pipe.model is not None and new_pipe.model.cached_model is not None:
+            _, _, vae = new_pipe.model.cached_model
+            image_config.latent = {
+                "samples": vae.encode(image_config.image[:, :, :, :3])
+            }
 
         new_pipe.image_config = image_config
 
