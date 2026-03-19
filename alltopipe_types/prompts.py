@@ -1,20 +1,20 @@
-"""
-Prompt types and processor for All-to-Pipe.
-
-Handles positive and negative prompt containers and template parsing.
-"""
-
-from typing import Optional, Any, List, Tuple, Dict
+from typing import Optional, Any, List, Tuple, Dict, Union
 import torch
 import math
 
 
-class PositivePrompt:
-    """
-    Strongly-typed container for positive prompt data.
-    Attributes are added explicitly as needed.
-    Encoding is NOT performed here.
-    """
+class PromptContainer:
+    """Base container for prompt data."""
+
+    def __init__(self) -> None:
+        self.template: Optional[str] = None
+        self.allow_missing: bool = True
+        self.model: Optional[str] = None
+        self.lora: Optional[str] = None
+
+
+class PositivePrompt(PromptContainer):
+    """Strongly-typed container for positive prompt features."""
 
     ALLOWED_FEATURES: tuple[str, ...] = (
         "characters",
@@ -37,20 +37,9 @@ class PositivePrompt:
         "tags",
     )
 
-    def __init__(self) -> None:
-        """Initialize empty positive prompt container."""
-        self.template: Optional[str] = None
-        self.allow_missing: bool = True
-        self.model: Optional[str] = None
-        self.lora: Optional[str] = None
 
-
-class NegativePrompt:
-    """
-    Strongly-typed container for negative prompt data.
-    Kept separate from PositivePrompt by design.
-    Encoding is NOT performed here.
-    """
+class NegativePrompt(PromptContainer):
+    """Strongly-typed container for negative prompt features."""
 
     ALLOWED_FEATURES: tuple[str, ...] = (
         "permanent",
@@ -60,123 +49,107 @@ class NegativePrompt:
         "tags",
     )
 
-    def __init__(self) -> None:
-        """Initialize empty negative prompt container."""
-        self.template: Optional[str] = None
-        self.allow_missing: bool = True
-        self.model: Optional[str] = None
-        self.lora: Optional[str] = None
-
-    
-    
-    
-    
-    
-
-
-
-import torch
-import math
-from typing import List, Any, Tuple, Dict, Union
 
 class PromptProcessor:
-    MAX_PROMPT_TOKENS: int = 75 
-    START_TOKEN: int = 49406
-    END_TOKEN: int = 49407
-    DECAY_K: float = 0.0034055 
+    """
+    Handles synchronized multi-encoder tokenization,
+    positional decay, and global tensor aggregation.
+    """
+
+    DECAY_K: float = 0.0034055
     DECAY_FLOOR: float = 0.5
 
-    @staticmethod
-    def _normalize_tokens(tokenized: Any) -> torch.Tensor:
-        if isinstance(tokenized, dict):
-            value: Any = tokenized.get("l", next(iter(tokenized.values())))
-        else:
-            value = tokenized
-        if isinstance(value, list):
-            if len(value) > 0 and isinstance(value[0], list):
-                value = value[0]
-            return torch.tensor(value, dtype=torch.float32)
-        return value.to(torch.float32)
-
-    @staticmethod
-    def extract_prompt_tokens(tokens: torch.Tensor) -> torch.Tensor:
-        ids: torch.Tensor = tokens[:, 0]
-        mask: torch.Tensor = (ids != 0) & (ids != 49406) & (ids != 49407)
-        return tokens[mask]
-
-    @staticmethod
-    def _finalize_block(block: torch.Tensor) -> Dict[str, List[List[Tuple[int, float]]]]:
-        if block.shape[0] < 77:
-            padding: torch.Tensor = torch.zeros((77 - block.shape[0], 2), device=block.device)
-            block = torch.cat([block, padding], dim=0)
-        pairs: List[Tuple[int, float]] = [(int(row[0]), float(row[1])) for row in block[:77]]
-        return {"l": [pairs]}
-
     @classmethod
-    def encode_prompt(cls, prompt_text: str, clip: Any) -> List[List[Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
+    def encode_prompt(
+        cls, prompt_text: str, clip: Any
+    ) -> List[List[Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
         if not prompt_text.strip():
             raise ValueError("Prompt text cannot be empty.")
 
-        segments: List[str] = [s.strip() for s in prompt_text.split(",") if s.strip()]
-        seg_data: List[Tuple[torch.Tensor, int]] = []
-        for seg in segments:
-            tokenized: Any = clip.tokenize(seg)
-            pairs: torch.Tensor = cls.extract_prompt_tokens(cls._normalize_tokens(tokenized))
-            seg_data.append((pairs, int(pairs.shape[0])))
+        # 1. Environment Detection
+        token_data: Dict[str, List[List[Tuple[int, float]]]] = clip.tokenize(
+            prompt_text
+        )
+        main_key: str = "l" if "l" in token_data else next(iter(token_data))
 
-        chunks_pairs: List[torch.Tensor] = []
-        current_pairs: List[torch.Tensor] = []
-        current_len: int = 0
-        for pairs, length in seg_data:
-            if current_len + length <= cls.MAX_PROMPT_TOKENS:
-                current_pairs.append(pairs)
-                current_len += length
-            else:
-                if current_pairs:
-                    chunks_pairs.append(torch.cat(current_pairs, dim=0))
-                current_pairs, current_len = [pairs], length
-        if current_pairs:
-            chunks_pairs.append(torch.cat(current_pairs, dim=0))
+        # Access nested tokenizer if present (common in multi-encoder CLIP models)
+        tokenizer = (
+            clip.tokenizer.clip_l
+            if hasattr(clip.tokenizer, "clip_l")
+            else clip.tokenizer
+        )
+        max_len: int = getattr(tokenizer, "max_length", 77)
+        chunk_limit: int = max_len - 2
 
-        encoded_orig: List[Any] = []
-        encoded_decay: List[Any] = []
-        global_token_idx: int = 0
-        for chunk in chunks_pairs:
-            orig_block: torch.Tensor = torch.cat([
-                torch.tensor([[cls.START_TOKEN, 1.0]], device=chunk.device),
-                chunk,
-                torch.tensor([[cls.END_TOKEN, 1.0]], device=chunk.device)
-            ], dim=0)
-            
-            decayed_chunk: torch.Tensor = chunk.clone()
-            for j in range(len(decayed_chunk)):
-                m: float = cls.DECAY_FLOOR + (1.0 - cls.DECAY_FLOOR) * math.exp(-cls.DECAY_K * global_token_idx)
-                decayed_chunk[j, 1] *= m
-                global_token_idx += 1
-            
-            decayed_block: torch.Tensor = torch.cat([
-                torch.tensor([[cls.START_TOKEN, 1.0]], device=chunk.device),
-                decayed_chunk,
-                torch.tensor([[cls.END_TOKEN, 1.0]], device=chunk.device)
-            ], dim=0)
+        # Extract special tokens from the primary encoder's sample
+        sample_tokens: List[Tuple[int, float]] = token_data[main_key][0]
+        start_id: int = sample_tokens[0][0]
+        end_id: int = sample_tokens[-1][0]
 
-            encoded_orig.append(clip.encode_from_tokens_scheduled(cls._finalize_block(orig_block)))
-            encoded_decay.append(clip.encode_from_tokens_scheduled(cls._finalize_block(decayed_block)))
+        # 2. Extract Raw Content Streams
+        clean_streams: Dict[str, List[Tuple[int, float]]] = {}
+        for k, weight_list in token_data.items():
+            clean_streams[k] = [
+                t for t in weight_list[0] if t[0] not in (start_id, end_id, 0)
+            ]
 
-        all_conds: List[torch.Tensor] = []
-        for c in encoded_orig:
-            v: Any = c[0][0]
-            all_conds.append(next(iter(v.values())) if isinstance(v, dict) else v)
-        full_cond: torch.Tensor = torch.cat(all_conds, dim=1)
+        # 3. Synchronized Chunking & Positional Decay
+        num_tokens: int = len(clean_streams[main_key])
+        num_chunks: int = math.ceil(num_tokens / chunk_limit) if num_tokens > 0 else 1
 
-        all_pooled: List[torch.Tensor] = []
-        for c in encoded_decay:
-            p: Any = c[0][1]
-            all_pooled.append(p["pooled_output"] if isinstance(p, dict) else p)
-        avg_pooled: torch.Tensor = torch.mean(torch.stack(all_pooled), dim=0)
-        
-        first_p: Any = encoded_orig[0][0][1]
-        final_p: Any = {"pooled_output": avg_pooled} if isinstance(first_p, dict) else avg_pooled
+        processed_chunks: List[Dict[str, List[List[Tuple[int, float]]]]] = []
 
-        # Standard ComfyUI format: [[cond_tensor, {"pooled_output": ...}]]
-        return [[full_cond, final_p]]
+        for i in range(num_chunks):
+            start_idx: int = i * chunk_limit
+            end_idx: int = start_idx + chunk_limit
+            chunk_structure: Dict[str, List[List[Tuple[int, float]]]] = {}
+
+            for k, stream in clean_streams.items():
+                segment: List[Tuple[int, float]] = stream[start_idx:end_idx]
+
+                # Apply decay strictly to the primary encoder's weights
+                if k == main_key:
+                    decayed: List[Tuple[int, float]] = []
+                    for j, (tid, weight) in enumerate(segment):
+                        global_pos: int = start_idx + j
+                        # Decayed weight: weight * m
+                        m: float = cls.DECAY_FLOOR + (1.0 - cls.DECAY_FLOOR) * math.exp(
+                            -cls.DECAY_K * global_pos
+                        )
+                        decayed.append((tid, weight * m))
+                    segment = decayed
+
+                # Wrap segment with start/end tokens and pad to max_len
+                block: List[Tuple[int, float]] = (
+                    [(start_id, 1.0)] + segment + [(end_id, 1.0)]
+                )
+                if len(block) < max_len:
+                    block += [(0, 0.0)] * (max_len - len(block))
+
+                chunk_structure[k] = [block[:max_len]]
+
+            processed_chunks.append(chunk_structure)
+
+        # 4. Encoding and Aggregation
+        cond_list: List[torch.Tensor] = []
+        pooled_list: List[torch.Tensor] = []
+
+        for chunk in processed_chunks:
+            encoded_data: List[Any] = clip.encode_from_tokens_scheduled(chunk)
+
+            # Extract sequence conditioning tensor
+            c_tensor: torch.Tensor = encoded_data[0][0]
+            cond_list.append(c_tensor)
+
+            # Extract pooled output (handles Dict or raw Tensor)
+            p_data: Any = encoded_data[0][1]
+            pooled_list.append(
+                p_data["pooled_output"] if isinstance(p_data, dict) else p_data
+            )
+
+        # 5. Final Assembly
+        # Concatenate sequence tokens and average global pooled vectors
+        full_cond: torch.Tensor = torch.cat(cond_list, dim=1)
+        avg_pooled: torch.Tensor = torch.mean(torch.stack(pooled_list), dim=0)
+
+        return [[full_cond, {"pooled_output": avg_pooled}]]
