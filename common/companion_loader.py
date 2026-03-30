@@ -365,6 +365,9 @@ class CompanionLoader:
         if len(values) == 2:
             # Range [min, max]
             min_val, max_val = values[0], values[1]
+            if min_val>max_val:
+                min_val, max_val = values[1], values[0]
+
             if min_val <= current <= max_val:
                 # Current value within range, keep it
                 return current_type(current)

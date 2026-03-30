@@ -85,7 +85,7 @@ class TemplateNode:
             ValueError: If template_type is invalid
         """
         # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
-        new_pipe: Pipe = pipe if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe.clone() if pipe is not None else Pipe()
         # Validate template syntax (find placeholders)
         placeholders = TemplateParser.find_placeholders(template_text)
         template = Template(template_type, placeholders, template_text, allow_missing)

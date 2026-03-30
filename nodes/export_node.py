@@ -111,7 +111,14 @@ class ExportNode:
                 pipe.positive_template.allow_missing,
             )
         positive_conditioning = PromptProcessor.encode_prompt(
-            pipe.positive_template.parsed_template, clip
+            clip,
+            pipe.positive_template.parsed_template,
+            pipe.image_config.width,
+            pipe.image_config.height,
+            pipe.image_config.width,
+            pipe.image_config.height,
+            crop_w=0,
+            crop_h=0,
         )
 
         if pipe.negative_template.parsed_template is None:
@@ -121,7 +128,14 @@ class ExportNode:
                 pipe.negative_template.allow_missing,
             )
         negative_conditioning = PromptProcessor.encode_prompt(
-            pipe.negative_template.parsed_template, clip
+            clip,
+            pipe.negative_template.parsed_template,
+            pipe.image_config.width,
+            pipe.image_config.height,
+            pipe.image_config.width,
+            pipe.image_config.height,
+            crop_w=0,
+            crop_h=0,
         )
 
         # Extract all parameters for direct KSampler connection

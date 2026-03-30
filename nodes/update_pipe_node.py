@@ -25,7 +25,7 @@ class UpdatePipeNode:
 
     @staticmethod
     def execute(key: str, value: Any, pipe: Optional[Pipe] = None) -> Tuple[Pipe]:
-        new_pipe = pipe if pipe is not None else Pipe()
+        new_pipe = pipe.clone() if pipe is not None else Pipe()
 
         element = UpdatePipeNode.elements_to_update[key]
         pipe_attr = element["pipe_key"]

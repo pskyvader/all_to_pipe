@@ -60,7 +60,7 @@ class ParametersBuilderNode:
         """
         # Deep copy pipe to avoid modifying the original
         # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
-        new_pipe: Pipe = pipe if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe.clone() if pipe is not None else Pipe()
 
         # Handle RANDOM sampler selection
         selected_sampler = sampler

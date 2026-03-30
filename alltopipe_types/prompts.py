@@ -1,155 +1,176 @@
-from typing import Optional, Any, List, Tuple, Dict, Union
 import torch
 import math
-
+from typing import List, Tuple, Dict, Union, Any, Optional
 
 class PromptContainer:
-    """Base container for prompt data."""
-
+    """Base container for managing prompt state and metadata."""
     def __init__(self) -> None:
-        self.template: Optional[str] = None
         self.allow_missing: bool = True
         self.model: Optional[str] = None
         self.lora: Optional[str] = None
 
-
 class PositivePrompt(PromptContainer):
-    """Strongly-typed container for positive prompt features."""
-
-    ALLOWED_FEATURES: tuple[str, ...] = (
-        "characters",
-        "age",
-        "body",
-        "race",
-        "face",
-        "hair",
-        "clothes",
-        "accessories",
-        "location",
-        "action",
-        "pose",
-        "camera",
-        "lighting",
-        "style",
-        "color",
-        "environment",
-        "embeddings",
-        "tags",
+    """Specific container for subject-focused positive features."""
+    ALLOWED_FEATURES: Tuple[str, ...] = (
+        "characters", "age", "body", "race", "face", "hair",
+        "clothes", "accessories", "location", "action", "pose",
+        "camera", "lighting", "style", "color", "environment",
+        "embeddings", "tags",
     )
-
 
 class NegativePrompt(PromptContainer):
-    """Strongly-typed container for negative prompt features."""
-
-    ALLOWED_FEATURES: tuple[str, ...] = (
-        "permanent",
-        "embeddings",
-        "style",
-        "color",
-        "tags",
+    """Specific container for exclusion-focused negative features."""
+    ALLOWED_FEATURES: Tuple[str, ...] = (
+        "permanent", "embeddings", "style", "color", "tags",
     )
 
-
 class PromptProcessor:
-    """
-    Handles synchronized multi-encoder tokenization,
-    positional decay, and global tensor aggregation.
-    """
-
+    """Handles multi-encoder synchronization, positional decay, and tensor aggregation."""
+    
     DECAY_K: float = 0.0034055
     DECAY_FLOOR: float = 0.5
 
+    @staticmethod
+    def detect_architecture(clip: Any) -> str:
+        """Identifies model type to determine metadata requirements."""
+        test_tokens: Dict[str, Any] = clip.tokenize("")
+        keys: List[str] = list(test_tokens.keys())
+        
+        if "t5xxl" in keys:
+            return "t5_hybrid"  # SD3, Flux
+        if "g" in keys and "l" in keys:
+            return "sdxl"       # SDXL, Pony
+        return "sd15"           # SD1.5
+
+    @staticmethod
+    def get_tokenizer_limits(clip: Any) -> Tuple[int, int]:
+        """Retrieves max sequence length and internal chunking limits."""
+        tokenizer: Any = clip.tokenizer.clip_l if hasattr(clip.tokenizer, "clip_l") else clip.tokenizer
+        max_len: int = getattr(tokenizer, "max_length", 77)
+        return int(max_len), int(max_len - 2)
+
+    @staticmethod
+    def get_special_tokens(token_data: Dict[str, List[List[Tuple[int, float]]]]) -> Tuple[int, int]:
+        """Extracts start and end token IDs (SOH/EOH)."""
+        first_key: str = next(iter(token_data))
+        sample: List[Tuple[int, float]] = token_data[first_key][0]
+        return int(sample[0][0]), int(sample[-1][0])
+
+    @staticmethod
+    def clean_token_streams(
+        token_data: Dict[str, List[List[Tuple[int, float]]]], 
+        start_id: int, 
+        end_id: int
+    ) -> Dict[str, List[Tuple[int, float]]]:
+        """Removes delimiters and padding to prepare raw token streams."""
+        return {
+            k: [t for t in v[0] if t[0] not in (start_id, end_id, 0)]
+            for k, v in token_data.items()
+        }
+
+    @classmethod
+    def apply_decay_to_segment(cls, segment: List[Tuple[int, float]], start_offset: int) -> List[Tuple[int, float]]:
+        """Calculates and applies the exponential weight decay to a chunk segment."""
+        decayed: List[Tuple[int, float]] = []
+        for i, (token_id, weight) in enumerate(segment):
+            global_pos: int = start_offset + i
+            multiplier: float = cls.DECAY_FLOOR + (1.0 - cls.DECAY_FLOOR) * math.exp(-cls.DECAY_K * global_pos)
+            decayed.append((token_id, weight * multiplier))
+        return decayed
+
+    @staticmethod
+    def wrap_and_pad_block(
+        streams: Dict[str, List[Tuple[int, float]]], 
+        start_id: int, 
+        end_id: int, 
+        max_len: int
+    ) -> Dict[str, List[List[Tuple[int, float]]]]:
+        """Re-inserts delimiters and pads streams to the required CLIP sequence length."""
+        block: Dict[str, List[List[Tuple[int, float]]]] = {}
+        for k, tokens in streams.items():
+            formatted: List[Tuple[int, float]] = [(start_id, 1.0)] + tokens + [(end_id, 1.0)]
+            if len(formatted) < max_len:
+                formatted += [(0, 0.0)] * (max_len - len(formatted))
+            block[k] = [formatted[:max_len]]
+        return block
+
+    @staticmethod
+    def extract_pooled_output(encoded_result: List[Any]) -> torch.Tensor:
+        """Safely extracts the pooled_output tensor from the CLIP encoding result."""
+        # result format: [[tensor, {"pooled_output": tensor}]]
+        data: Union[Dict[str, Any], torch.Tensor] = encoded_result[0][1]
+        if isinstance(data, dict) and "pooled_output" in data:
+            return data["pooled_output"]
+        return data  # Fallback for SD1.5/Simple encoders
+
     @classmethod
     def encode_prompt(
-        cls, prompt_text: str, clip: Any
-    ) -> List[List[Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
-        if not prompt_text.strip():
+        cls, 
+        clip: Any,
+        text: str,
+        width: int,
+        height: int,
+        target_width: int,
+        target_height: int,
+        crop_w: int,
+        crop_h: int
+    ) -> List[List[Union[torch.Tensor, Dict[str, Any]]]]:
+        """
+        Main entry point. Synchronizes multi-encoder tokens and aggregates tensors.
+        Explicitly raises ValueError on empty strings to prevent downstream sampler errors.
+        """
+        if not text.strip():
             raise ValueError("Prompt text cannot be empty.")
 
-        # 1. Environment Detection
-        token_data: Dict[str, List[List[Tuple[int, float]]]] = clip.tokenize(
-            prompt_text
-        )
-        main_key: str = "l" if "l" in token_data else next(iter(token_data))
+        # 1. Initialization and Limit Detection
+        model_type: str = cls.detect_architecture(clip)
+        max_len, chunk_limit = cls.get_tokenizer_limits(clip)
+        
+        # 2. Tokenization and Cleaning
+        token_data: Dict[str, List[List[Tuple[int, float]]]] = clip.tokenize(text)
+        start_id, end_id = cls.get_special_tokens(token_data)
+        clean_streams: Dict[str, List[Tuple[int, float]]] = cls.clean_token_streams(token_data, start_id, end_id)
+        
+        # 3. Synchronized Processing
+        ref_key: str = "l" if "l" in clean_streams else next(iter(clean_streams))
+        num_tokens: int = len(clean_streams[ref_key])
+        num_chunks: int = max(1, math.ceil(num_tokens / chunk_limit))
 
-        # Access nested tokenizer if present (common in multi-encoder CLIP models)
-        tokenizer = (
-            clip.tokenizer.clip_l
-            if hasattr(clip.tokenizer, "clip_l")
-            else clip.tokenizer
-        )
-        max_len: int = getattr(tokenizer, "max_length", 77)
-        chunk_limit: int = max_len - 2
-
-        # Extract special tokens from the primary encoder's sample
-        sample_tokens: List[Tuple[int, float]] = token_data[main_key][0]
-        start_id: int = sample_tokens[0][0]
-        end_id: int = sample_tokens[-1][0]
-
-        # 2. Extract Raw Content Streams
-        clean_streams: Dict[str, List[Tuple[int, float]]] = {}
-        for k, weight_list in token_data.items():
-            clean_streams[k] = [
-                t for t in weight_list[0] if t[0] not in (start_id, end_id, 0)
-            ]
-
-        # 3. Synchronized Chunking & Positional Decay
-        num_tokens: int = len(clean_streams[main_key])
-        num_chunks: int = math.ceil(num_tokens / chunk_limit) if num_tokens > 0 else 1
-
-        processed_chunks: List[Dict[str, List[List[Tuple[int, float]]]]] = []
-
-        for i in range(num_chunks):
-            start_idx: int = i * chunk_limit
-            end_idx: int = start_idx + chunk_limit
-            chunk_structure: Dict[str, List[List[Tuple[int, float]]]] = {}
-
-            for k, stream in clean_streams.items():
-                segment: List[Tuple[int, float]] = stream[start_idx:end_idx]
-
-                # Apply decay strictly to the primary encoder's weights
-                if k == main_key:
-                    decayed: List[Tuple[int, float]] = []
-                    for j, (tid, weight) in enumerate(segment):
-                        global_pos: int = start_idx + j
-                        # Decayed weight: weight * m
-                        m: float = cls.DECAY_FLOOR + (1.0 - cls.DECAY_FLOOR) * math.exp(
-                            -cls.DECAY_K * global_pos
-                        )
-                        decayed.append((tid, weight * m))
-                    segment = decayed
-
-                # Wrap segment with start/end tokens and pad to max_len
-                block: List[Tuple[int, float]] = (
-                    [(start_id, 1.0)] + segment + [(end_id, 1.0)]
-                )
-                if len(block) < max_len:
-                    block += [(0, 0.0)] * (max_len - len(block))
-
-                chunk_structure[k] = [block[:max_len]]
-
-            processed_chunks.append(chunk_structure)
-
-        # 4. Encoding and Aggregation
         cond_list: List[torch.Tensor] = []
         pooled_list: List[torch.Tensor] = []
 
-        for chunk in processed_chunks:
-            encoded_data: List[Any] = clip.encode_from_tokens_scheduled(chunk)
+        for i in range(num_chunks):
+            start_idx: int = i * chunk_limit
+            end_idx: int = (i + 1) * chunk_limit
+            chunk_content: Dict[str, List[Tuple[int, float]]] = {}
+            
+            for k in clean_streams:
+                # Ensure all encoders (G, L, T5) are sliced at the exact same text index
+                segment: List[Tuple[int, float]] = clean_streams[k][start_idx:end_idx]
+                chunk_content[k] = cls.apply_decay_to_segment(segment, start_idx)
+            
+            # Format and Encode
+            formatted_block: Dict[str, Any] = cls.wrap_and_pad_block(chunk_content, start_id, end_id, max_len)
+            encoded: List[Any] = clip.encode_from_tokens_scheduled(formatted_block)
+            
+            cond_list.append(encoded[0][0])
+            pooled_list.append(cls.extract_pooled_output(encoded))
 
-            # Extract sequence conditioning tensor
-            c_tensor: torch.Tensor = encoded_data[0][0]
-            cond_list.append(c_tensor)
-
-            # Extract pooled output (handles Dict or raw Tensor)
-            p_data: Any = encoded_data[0][1]
-            pooled_list.append(
-                p_data["pooled_output"] if isinstance(p_data, dict) else p_data
-            )
-
-        # 5. Final Assembly
-        # Concatenate sequence tokens and average global pooled vectors
+        # 4. Final Aggregation and Metadata Injection
         full_cond: torch.Tensor = torch.cat(cond_list, dim=1)
-        avg_pooled: torch.Tensor = torch.mean(torch.stack(pooled_list), dim=0)
+        
+        # Pooled output from the first chunk represents the primary context
+        metadata: Dict[str, Any] = {"pooled_output": pooled_list[0]}
+        
+        # Micro-conditioning for SDXL architecture
+        if model_type == "sdxl":
+            metadata.update({
+                "width": width,
+                "height": height,
+                "crop_w": crop_w,
+                "crop_h": crop_h,
+                "target_width": target_width,
+                "target_height": target_height
+            })
 
-        return [[full_cond, {"pooled_output": avg_pooled}]]
+        return [[full_cond, metadata]]

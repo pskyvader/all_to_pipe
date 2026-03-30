@@ -4,7 +4,8 @@ Pipe type for All-to-Pipe.
 Central container that holds all pipeline data.
 """
 
-from typing import Optional, List, Dict, Any
+import copy
+from typing import Optional, List, Dict, Any, Self
 from .model import Model
 from .lora import LoraSpec
 from .parameters import Parameters
@@ -60,3 +61,38 @@ class Pipe:
         # Companion file data from models/LoRAs
         self.companion_model_data = companion_model_data
         self.companion_lora_data = companion_lora_data
+
+    def clone(self) -> Self:
+        """Returns a deep copy of the current Pipe instance."""
+        return type(self)(
+            model=self.model,
+            loras=list(self.loras),
+            parameters=self.parameters,
+            image_config=self.image_config,
+            positive_template=self.positive_template,
+            negative_template=self.negative_template,
+            positive_prompt=self.positive_prompt,
+            negative_prompt=self.negative_prompt,
+            companion_model_data=(
+                dict(self.companion_model_data)
+                if self.companion_model_data is not None
+                else None
+            ),
+            companion_lora_data=(
+                [dict(d) for d in self.companion_lora_data]
+                if self.companion_lora_data is not None
+                else None
+            ),
+        )
+        return copy.deepcopy(self)
+
+    def derive(self, **overrides: Any) -> Self:
+        """
+        A clever way to clone AND update specific values at once.
+        Example: new_pipe = pipe.derive(positive_prompt="A sunny day")
+        """
+        new_instance = self.clone()
+        for key, value in overrides.items():
+            if hasattr(new_instance, key):
+                setattr(new_instance, key, value)
+        return new_instance

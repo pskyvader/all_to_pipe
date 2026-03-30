@@ -13,7 +13,9 @@ from ..alltopipe_types import (
     PositivePrompt,
     NegativePrompt,
     ModelProcessor,
+    ImageConfigProcessor,
 )
+
 # from ..common.utils import deep_copy_pipe
 from ..common.file_helpers import (
     discover_models_in_subfolder,
@@ -58,7 +60,7 @@ class ModelNode:
             Tuple containing the modified Pipe instance
         """
         # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
-        new_pipe: Pipe = pipe if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe.clone() if pipe is not None else Pipe()
 
         if not new_pipe.parameters:
             raise ValueError("Pipe Needs Parameters before loading a model")
@@ -109,6 +111,7 @@ class ModelNode:
         new_pipe.model = Model(
             name=model_name, subfolder=model_subfolder, clip_skip=clip_skip
         )
+        new_pipe.model.cached_model = ModelProcessor.load_model(new_pipe.model)
 
         companion = (
             CompanionLoader.load_model_companion(model_name, model_subfolder)
@@ -142,15 +145,27 @@ class ModelNode:
                     companion, new_pipe.parameters
                 )
             if companion.resolution:
-                new_pipe.image_config = CompanionLoader.apply_companion_to_image_config(
+                image_config = CompanionLoader.apply_companion_to_image_config(
                     companion, new_pipe.image_config
                 )
+
+                # image_config.image = ImageConfigProcessor.create_noisy_image(
+                #     image_config,
+                #     new_pipe.parameters.seed if new_pipe.parameters else None,
+                # )
+
+                if image_config.image is not None:
+                    _, _, vae = new_pipe.model.cached_model
+                    image_config.latent = {
+                        "samples": vae.encode(image_config.image[:, :, :, :3])
+                    }
+                new_pipe.image_config = image_config
+
             if companion.clip_skip:
+                print(f"companion model applying clip skip:{companion.clip_skip} , to model:{new_pipe.model.name}")
                 new_pipe.model = CompanionLoader.apply_companion_to_model(
                     companion, new_pipe.model
                 )
-
-        new_pipe.model.cached_model = ModelProcessor.load_model(new_pipe.model)
 
         return (new_pipe,)
 

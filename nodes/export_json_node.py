@@ -5,7 +5,8 @@ Exports Pipe as plain serializable data.
 """
 
 import json
-from typing import Dict, Any, Tuple, List
+from typing import Any
+from pathlib import Path
 
 
 from ..alltopipe_types import (
@@ -45,7 +46,7 @@ class ExportJsonNode:
         prompt_text: bool = True,
         prompt_map: bool = True,
         companion_data: bool = True,
-    ) -> Tuple[str,]:
+    ) -> tuple[str]:
         """
         Execute the node and export pipe as JSON-safe data.
 
@@ -53,7 +54,7 @@ class ExportJsonNode:
             pipe: The input Pipe instance
 
         Returns:
-            Tuple containing:
+            tuple containing:
                 - json_string: Complete JSON representation of the pipeline
 
         Raises:
@@ -76,17 +77,17 @@ class ExportJsonNode:
 
         # Assemble consolidated flat JSON structure
         # All properties at top level for easier consumption
-        json_output: Dict[str, Any] = {}
+        json_output: dict[str, Any] = {}
 
         if model:
-            json_output["model"] = pipe.model.name
+            json_output["model"] = Path(pipe.model.name).stem
             json_output["model_subfolder"] = pipe.model.subfolder
             json_output["clip_skip"] = pipe.model.clip_skip
 
-        if loras:
-            lora_data: List[Dict[str, Any]] = [
+        if loras and pipe.loras:
+            lora_data: list[dict[str, Any]] = [
                 {
-                    "name": lora.name,
+                    "name": Path(lora.name).stem,
                     "subfolder": lora.subfolder,
                     "weight": lora.weight,
                     "clip_weight": lora.clip_weight,
@@ -94,7 +95,7 @@ class ExportJsonNode:
                 for lora in pipe.loras
             ]
             json_output["loras"] = lora_data
-            json_output["lora"] = lora_data[0]["name"]
+            json_output["lora"] = Path(lora_data[0]["name"]).stem
             json_output["lora_weight"] = lora_data[0]["weight"]
 
         if parameters:
@@ -146,12 +147,12 @@ class ExportJsonNode:
         return (json_string,)
 
     @classmethod
-    def INPUT_TYPES(cls) -> Dict[str, Any]:
+    def INPUT_TYPES(cls) -> dict[str, Any]:
         """
         Define the input types for this node.
 
         Returns:
-            Dictionary defining node inputs
+            dictionary defining node inputs
         """
         return {
             "required": {
@@ -168,7 +169,7 @@ class ExportJsonNode:
             },
         }
 
-    RETURN_TYPES: Tuple[str, ...] = ("STRING",)
-    RETURN_NAMES: Tuple[str, ...] = ("json",)
+    RETURN_TYPES: tuple[str, ...] = ("STRING",)
+    RETURN_NAMES: tuple[str, ...] = ("json",)
     FUNCTION: str = "execute"
     CATEGORY: str = "all-to-pipe"

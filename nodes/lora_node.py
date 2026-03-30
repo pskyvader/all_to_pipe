@@ -4,16 +4,19 @@ All-to-Pipe LoRA node.
 Adds one LoRA specification to the Pipe with companion file loading and parameter adjustment.
 """
 
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, Set
 import os
 import random
+from torch import Tensor
 from ..alltopipe_types import (
     Pipe,
     LoraSpec,
     PositivePrompt,
     NegativePrompt,
     LoraProcessor,
+    ModelProcessor,
 )
+
 # from ..common.utils import deep_copy_pipe
 from ..common.constants import MIN_LORA_WEIGHT, MAX_LORA_WEIGHT
 from ..common.file_helpers import discover_loras_in_subfolder
@@ -58,13 +61,13 @@ class LoraNode:
 
     @staticmethod
     def execute(
-        pipe: Optional[Pipe] = None,
+        pipe: Pipe |None = None,
         lora_selection: str = "",
         weight: float = 1.0,
         clip_weight: float = 1.0,
         load_companion: bool = False,
         random_subfolder: str = "all",
-    ) -> Tuple[Pipe]:
+    ) -> tuple[Pipe]:
         """
         Execute the node and add a LoRA specification to the pipe.
 
@@ -80,7 +83,7 @@ class LoraNode:
             Tuple containing the modified Pipe instance
         """
         # new_pipe: Pipe = deep_copy_pipe(pipe) if pipe is not None else Pipe()
-        new_pipe: Pipe = pipe if pipe is not None else Pipe()
+        new_pipe: Pipe = pipe.clone() if pipe is not None else Pipe()
 
         if not new_pipe.model:
             raise ValueError("Pipe Needs a model before applying loras")
@@ -126,14 +129,29 @@ class LoraNode:
             )
 
         # Load companion file if requested to get weights
-        final_weight = weight
-        final_clip_weight = clip_weight
+
+        lora_spec: LoraSpec = LoraSpec(
+            name=lora_name,
+            subfolder=lora_subfolder,
+            weight=weight,
+            clip_weight=clip_weight,
+        )
+        lora_weights: Dict[str, Tensor] = LoraProcessor.load_lora(lora_spec)
+        (model, _, _) = ModelProcessor.load_model(new_pipe.model)
+
+        model_keys: Set[str] = LoraProcessor.get_model_key_set(model)
+        if not LoraProcessor.is_lora_compatible(lora_weights, model_keys):
+            print(f"Architecture Mismatch: Skipping {lora_spec.name}")
+            return (new_pipe,)
 
         companion = (
             CompanionLoader.load_lora_companion(lora_name, lora_subfolder)
             if load_companion
             else None
         )
+
+        final_weight = weight
+        final_clip_weight = clip_weight
 
         if companion is not None and hasattr(companion, "raw_data"):
             # Try to load weights from companion file
@@ -148,19 +166,14 @@ class LoraNode:
                 final_clip_weight = final_weight
 
         # Clamp weights to valid range
-        final_weight = max(MIN_LORA_WEIGHT, min(MAX_LORA_WEIGHT, final_weight))
-        final_clip_weight = max(
+        lora_spec.weight = max(MIN_LORA_WEIGHT, min(MAX_LORA_WEIGHT, final_weight))
+        lora_spec.clip_weight = max(
             MIN_LORA_WEIGHT, min(MAX_LORA_WEIGHT, final_clip_weight)
         )
 
         # Create and validate the LoRA specification
-        lora_spec: LoraSpec = LoraSpec(
-            name=lora_name,
-            subfolder=lora_subfolder,
-            weight=final_weight,
-            clip_weight=final_clip_weight,
-        )
-        validate_lora_spec(lora_spec)
+
+        # validate_lora_spec(lora_spec)
 
         if companion is not None:
             # Store companion file data if not already stored (LoRA takes priority over model)
@@ -197,7 +210,6 @@ class LoraNode:
                 new_pipe.model = CompanionLoader.apply_companion_to_model(
                     companion, new_pipe.model
                 )
-        lora_spec.cached_lora = LoraProcessor.load_lora(lora_spec)
         new_pipe.loras.append(lora_spec)
 
         return (new_pipe,)
