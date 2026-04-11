@@ -7,6 +7,7 @@ Builds and attaches sampler parameters to the Pipe.
 from typing import Dict, Any, Tuple, Optional
 import random
 from ..alltopipe_types import Pipe, Parameters
+
 # from ..common.utils import deep_copy_pipe
 from ..common.constants import (
     SUPPORTED_SAMPLERS,
@@ -43,7 +44,7 @@ class ParametersBuilderNode:
         scheduler: str = "normal",
         seed: int = 0,
         denoise: float = 1.0,
-    ) -> Tuple[Pipe]:
+    ) -> tuple[Pipe]:
         """
         Execute the node and build parameters for the pipe.
 

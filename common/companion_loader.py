@@ -72,7 +72,7 @@ class CompanionLoader:
         model_name: str,
         subfolder: str,
         base_path: str = "models/checkpoints",
-    ) -> Optional[CompanionFile]:
+    ) -> CompanionFile | None:
         """
         Load companion JSON file for a model.
 
@@ -365,7 +365,7 @@ class CompanionLoader:
         if len(values) == 2:
             # Range [min, max]
             min_val, max_val = values[0], values[1]
-            if min_val>max_val:
+            if min_val > max_val:
                 min_val, max_val = values[1], values[0]
 
             if min_val <= current <= max_val:

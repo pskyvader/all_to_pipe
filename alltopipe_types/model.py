@@ -10,19 +10,21 @@ class Model:
         self.name: str = name
         self.subfolder: str = subfolder
         self.clip_skip: int = clip_skip
-        self.cached_model: Optional[
-            Tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE]
-        ] = None
+        self.cached_model: (
+            tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE] | None
+        ) = None
 
 
 class ModelProcessor:
     @staticmethod
     def load_model(
         model: Model,
-    ) -> Tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE]:
+    ) -> tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE]:
         if not model or not model.name:
             raise ValueError("Model name is required and cannot be empty")
-
+        output_model: comfy.model_patcher.ModelPatcher
+        clip: comfy.sd.CLIP
+        vae: comfy.sd.VAE
         if model.cached_model is not None:
             (output_model, clip, vae) = model.cached_model
 
@@ -44,8 +46,12 @@ class ModelProcessor:
         output_model, clip, vae = (out[0], out[1], out[2])
 
         if model.clip_skip < 0:
+            # if model.clip_skip != -1:
             clip: comfy.sd.CLIP = clip.clone()
             clip.clip_layer(model.clip_skip)
+            if hasattr(clip.cond_stage_model, "clip_layer"):
+                clip.cond_stage_model.set_clip_options({"layer": model.clip_skip})
+
         else:
             raise ValueError(f"Invalid clip_skip value: {model.clip_skip}")
 
