@@ -4,7 +4,8 @@ All-to-Pipe LoRA node.
 Adds one LoRA specification to the Pipe with companion file loading and parameter adjustment.
 """
 
-from typing import Dict, Any, Tuple, Optional, List, Set
+import logging
+from typing import Dict, Any, Tuple, List, Set
 import os
 import random
 from torch import Tensor
@@ -21,6 +22,9 @@ from ..alltopipe_types import (
 from ..common.constants import MIN_LORA_WEIGHT, MAX_LORA_WEIGHT
 from ..common.file_helpers import discover_loras_in_subfolder
 from ..common.companion_loader import CompanionLoader
+
+
+logger: logging.Logger = logging.getLogger("AllToPipe")
 
 
 def validate_lora_spec(lora: LoraSpec) -> None:
@@ -61,7 +65,7 @@ class LoraNode:
 
     @staticmethod
     def execute(
-        pipe: Pipe |None = None,
+        pipe: Pipe | None = None,
         lora_selection: str = "",
         weight: float = 1.0,
         clip_weight: float = 1.0,
@@ -139,9 +143,11 @@ class LoraNode:
         lora_weights: Dict[str, Tensor] = LoraProcessor.load_lora(lora_spec)
         (model, _, _) = ModelProcessor.load_model(new_pipe.model)
 
-        model_keys: Set[str] = LoraProcessor.get_model_key_set(model)
-        if not LoraProcessor.is_lora_compatible(lora_weights, model_keys):
-            print(f"Architecture Mismatch: Skipping {lora_spec.name}")
+        model_keys: set[str] = LoraProcessor.get_model_key_set(model)
+        if not LoraProcessor.is_lora_compatible(lora_weights, model_keys, lora_spec):
+            message: str = f"Architecture Mismatch: Skipping {lora_spec.name}"
+            logger.warning(message)
+            raise Exception(message)
             return (new_pipe,)
 
         companion = (

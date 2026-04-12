@@ -46,11 +46,11 @@ class ModelProcessor:
         output_model, clip, vae = (out[0], out[1], out[2])
 
         if model.clip_skip < 0:
-            # if model.clip_skip != -1:
-            clip: comfy.sd.CLIP = clip.clone()
-            clip.clip_layer(model.clip_skip)
-            if hasattr(clip.cond_stage_model, "clip_layer"):
-                clip.cond_stage_model.set_clip_options({"layer": model.clip_skip})
+            if model.clip_skip != -1:
+                clip: comfy.sd.CLIP = clip.clone()
+                clip.clip_layer(model.clip_skip)
+                if hasattr(clip.cond_stage_model, "clip_layer"):
+                    clip.cond_stage_model.set_clip_options({"layer": model.clip_skip})
 
         else:
             raise ValueError(f"Invalid clip_skip value: {model.clip_skip}")
