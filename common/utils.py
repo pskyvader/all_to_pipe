@@ -5,6 +5,8 @@ Utility functions for common operations across nodes.
 """
 
 import copy
+from typing import Optional
+
 from ..alltopipe_types import (
     Pipe,
     Model,
@@ -51,6 +53,7 @@ def deep_copy_pipe(pipe: Pipe | None) -> Pipe:
                 subfolder=lora.subfolder,
                 weight=lora.weight,
                 clip_weight=lora.clip_weight,
+                cached_metadata=copy.deepcopy(lora.cached_metadata),
             )
             new_loras.append(new_lora)
 

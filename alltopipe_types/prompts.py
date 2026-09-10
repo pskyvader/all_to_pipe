@@ -52,7 +52,7 @@ class NegativePrompt(PromptContainer):
 class PromptProcessor:
     """Handles multi-encoder synchronization, positional decay, and tensor aggregation."""
 
-    DECAY_K: float = 0.0034055
+    DECAY_K: float = 0.00034055
     DECAY_FLOOR: float = 0.5
 
     @staticmethod

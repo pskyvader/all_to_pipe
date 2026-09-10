@@ -123,12 +123,15 @@ class TestLoraProcessor:
             model, clip, vae = loaded
 
             # 2. Extract Data
-            model_keys = LoraProcessor.get_model_key_set(model)
             lora_weights = LoraProcessor.load_lora(lora_spec)
 
             # 3. Check Compatibility
             result = LoraProcessor.is_lora_compatible(
-                lora_weights, model_keys, lora_spec
+                lora_weights,
+                model,
+                lora_spec,
+                model_spec=model_spec,
+                clip=clip,
             )
 
             # 4. Assert

@@ -19,6 +19,10 @@ class ExportSingleNode:
             "attr_name": "latent",  # The attribute inside ImageConfig
             "pipe_key": "image_config",  # The attribute inside Pipe
         },
+        "seed": {
+            "attr_name": "seed",  # The attribute inside Parameters
+            "pipe_key": "parameters",  # The attribute inside Pipe
+        },
     }
 
     def __init__(self) -> None:

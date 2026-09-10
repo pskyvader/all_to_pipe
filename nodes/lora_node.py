@@ -57,6 +57,7 @@ class LoraNode:
     - COMBO selector for LoRA subfolders
     - COMBO selector for available LoRAs in subfolder
     - Random LoRA selection
+    - Optional preference for the current model subfolder when picking random LoRAs
     - Loads and applies companion JSON file data
     - Parses and distributes prompt data
     - Appends to Pipe.loras list (allows chaining multiple LoRA nodes)
@@ -65,6 +66,14 @@ class LoraNode:
     def __init__(self) -> None:
         """Initialize the LoRA node."""
         pass
+
+    @staticmethod
+    def _get_random_lora_pool(subfolder: str) -> list[str]:
+        if subfolder == "all":
+            return LoraNode._get_all_loras()
+        if subfolder == "":
+            return discover_loras_in_subfolder("")
+        return [f"{subfolder}/{name}" for name in discover_loras_in_subfolder(subfolder)]
 
     @staticmethod
     def get_lora(
@@ -133,6 +142,7 @@ class LoraNode:
         load_companion: bool = False,
         append_lora: bool = True,
         random_subfolder: str = "all",
+        prefer_same_model_subfolder: bool = False,
     ) -> tuple[Pipe]:
         """
         Execute the node and add a LoRA specification to the pipe.
@@ -144,6 +154,7 @@ class LoraNode:
             clip_weight: CLIP weight strength (overridden by companion file if present)
             load_companion: Whether to load weights from companion file
             random_subfolder: Subfolder to randomly select from when "RANDOM /" is chosen
+            prefer_same_model_subfolder: When true, try the current model folder first
 
         Returns:
             Tuple containing the modified Pipe instance
@@ -154,31 +165,98 @@ class LoraNode:
         if not new_pipe.model:
             raise ValueError("Pipe Needs a model before applying loras")
 
-        (model, _, _) = ModelProcessor.load_model(new_pipe.model)
-        model_keys: set[str] = LoraProcessor.get_model_key_set(model)
+        (model, clip, _) = ModelProcessor.load_model(new_pipe.model)
 
-        retries = 0
-        compatible = False
-        lora_spec = LoraSpec(
-            name="", subfolder="", weight=weight, clip_weight=clip_weight
-        )  # Placeholder initialization
-        while retries < 3 and not compatible:
-            lora_spec: LoraSpec = LoraNode.get_lora(
+        lora_spec: LoraSpec | None = None
+        if lora_selection == "RANDOM /":
+            candidate_paths: list[str] = []
+            seen_paths: set[str] = set()
+
+            candidate_pools: list[list[str]] = []
+            if prefer_same_model_subfolder and new_pipe.model.subfolder is not None:
+                preferred_pool = LoraNode._get_random_lora_pool(new_pipe.model.subfolder)
+                if preferred_pool:
+                    random.shuffle(preferred_pool)
+                    candidate_pools.append(preferred_pool)
+
+            fallback_pool = LoraNode._get_random_lora_pool(random_subfolder)
+            if fallback_pool:
+                random.shuffle(fallback_pool)
+                candidate_pools.append(fallback_pool)
+
+            for pool in candidate_pools:
+                for candidate in pool:
+                    if candidate not in seen_paths:
+                        seen_paths.add(candidate)
+                        candidate_paths.append(candidate)
+
+            if not candidate_paths:
+                raise ValueError(
+                    "No LoRAs available for the selected random folder options."
+                )
+
+            existing_lora_ids: set[tuple[str, str]] = {
+                (l.subfolder, l.name) for l in new_pipe.loras
+            }
+
+            for candidate_selection in candidate_paths:
+                if "/" in candidate_selection:
+                    parts = candidate_selection.rsplit("/", 1)
+                    cand_subfolder = parts[0]
+                    cand_name = parts[1]
+                else:
+                    cand_subfolder = ""
+                    cand_name = candidate_selection
+
+                if (cand_subfolder, cand_name) in existing_lora_ids:
+                    continue
+
+                try:
+                    candidate_spec = LoraNode.get_lora(
+                        candidate_selection, weight, clip_weight, random_subfolder
+                    )
+                    candidate_weights: dict[str, Tensor] = LoraProcessor.load_lora(
+                        candidate_spec
+                    )
+                    if LoraProcessor.is_lora_compatible(
+                        candidate_weights,
+                        model,
+                        candidate_spec,
+                        model_spec=new_pipe.model,
+                        clip=clip,
+                    ):
+                        lora_spec = candidate_spec
+                        break
+                except Exception as exc:
+                    logger.debug(
+                        "Skipping candidate LoRA '%s' during random selection: %s",
+                        candidate_selection,
+                        exc,
+                    )
+                    continue
+
+            if lora_spec is None:
+                logger.warning(
+                    "Architecture mismatch: no compatible random LoRA found for model '%s'",
+                    new_pipe.model.subfolder or new_pipe.model.name,
+                )
+                return (new_pipe,)
+        else:
+            lora_spec = LoraNode.get_lora(
                 lora_selection, weight, clip_weight, random_subfolder
             )
-            lora_weights: dict[str, Tensor] = LoraProcessor.load_lora(lora_spec)
-            compatible: bool = LoraProcessor.is_lora_compatible(
-                lora_weights, model_keys, lora_spec
-            )
-            if lora_selection != "RANDOM /":
-                break  # Don't retry if user specified a specific LoRA
-            retries += 1
-
-        if not compatible:
-            message: str = f"Architecture Mismatch: Skipping {lora_spec.name}"
-            logger.warning(message)
-            # raise Exception(message)
-            return (new_pipe,)
+            lora_weights = LoraProcessor.load_lora(lora_spec)
+            if not LoraProcessor.is_lora_compatible(
+                lora_weights,
+                model,
+                lora_spec,
+                model_spec=new_pipe.model,
+                clip=clip,
+            ):
+                logger.warning(
+                    "Architecture mismatch: Skipping %s", lora_spec.name
+                )
+                return (new_pipe,)
 
         companion: CompanionFile | None = (
             CompanionLoader.load_lora_companion(lora_spec.name, lora_spec.subfolder)
@@ -369,6 +447,7 @@ class LoraNode:
                     if lora_subfolders
                     else ("STRING", {"default": "all"})
                 ),
+                "prefer_same_model_subfolder": ("BOOLEAN", {"default": False}),
             },
         }
 

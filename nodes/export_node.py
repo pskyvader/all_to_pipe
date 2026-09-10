@@ -102,7 +102,9 @@ class ExportNode:
 
         # Apply LoRAs if model was loaded and LoRAs are specified
         if pipe.loras:
-            model, clip = LoraProcessor.apply_lora(model, clip, pipe.loras)
+            model, clip = LoraProcessor.apply_lora(
+                model, clip, pipe.loras, model_spec=pipe.model
+            )
 
         if pipe.positive_template.parsed_template is None:
             pipe.positive_template.parsed_template = TemplateParser.parse_template(

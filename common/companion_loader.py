@@ -440,7 +440,7 @@ class CompanionLoader:
             return current
         subset_size = random.randint(1, len(all_terms))
         selected_terms = random.sample(all_terms, min(subset_size, len(all_terms)))
-        current += ", ".join(selected_terms)
+        current += ", " + ", ".join(selected_terms)
         logger.info(f"Added {subset_size} terms to {param_name}: {selected_terms}")
         return current
 

@@ -37,8 +37,17 @@ class ModelProcessor:
             output_clip=True,
             embedding_directory=folder_paths.get_folder_paths("embeddings"),
         )
-        if not out or not out[0] or not out[1] or not out[2]:
+        if not out:
             raise ValueError(f"Failed to load model from '{ckpt_path}'")
+        missing = []
+        if not out[0]:
+            missing.append("model")
+        if not out[1]:
+            missing.append("clip")
+        if not out[2]:
+            missing.append("vae")
+        if missing:
+            raise ValueError(f"Checkpoint '{ckpt_path}' has no {'/'.join(missing)}")
 
         output_model, clip, vae = (out[0], out[1], out[2])
 
