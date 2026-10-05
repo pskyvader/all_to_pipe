@@ -433,9 +433,12 @@ class CompanionLoader:
             return current
         # Flatten suggestions into list of terms
         all_terms: list[str] = []
-        for suggestion in suggestions:
-            terms = [t.strip() for t in suggestion.split(",") if t.strip()]
-            all_terms.extend(terms)
+        # for suggestion in suggestions:
+        #     terms = [t.strip() for t in suggestion.split(",") if t.strip()]
+        #     all_terms.extend(terms)
+
+        all_terms = suggestions
+
         if not all_terms:
             return current
         subset_size = random.randint(1, len(all_terms))

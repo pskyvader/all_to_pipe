@@ -38,6 +38,7 @@ class ExportTextNode:
     RETURN_TYPES = (
         "STRING",
         "STRING",
+        "INT",
         "STRING",
         "STRING",
         "FLOAT",
@@ -60,6 +61,7 @@ class ExportTextNode:
     RETURN_NAMES = (
         "model_name",
         "model_subfolder",
+        "clip_skip",
         "lora_list",
         "first_lora_name",
         "first_lora_weight",
@@ -94,6 +96,7 @@ class ExportTextNode:
     ) -> tuple[
         str,
         str,
+        int,
         str,
         str,
         float,
@@ -131,6 +134,7 @@ class ExportTextNode:
         output_model_name = (
             (Path(pipe.model.name).stem if pipe.model else "") if model else ""
         )
+        output_clip_skip: int = pipe.model.clip_skip
         output_model_subfolder = (
             (pipe.model.subfolder if pipe.model else "") if model else ""
         )
@@ -230,6 +234,7 @@ class ExportTextNode:
         return (
             output_model_name,
             output_model_subfolder,
+            output_clip_skip,
             output_lora_list,
             first_lora_name,
             first_lora_weight,
