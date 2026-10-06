@@ -16,6 +16,8 @@ class Template:
         placeholders: list[str],
         text: str,
         allow_missing: bool,
+        decay: float,
+        decay_floor: float,
     ) -> None:
 
         if template_type not in ["positive", "negative"]:
@@ -30,6 +32,8 @@ class Template:
         self.text: str = text
         self.allow_missing: bool = allow_missing
         self.parsed_template: str | None = None
+        self.decay: float = decay
+        self.decay_floor: float = decay_floor
 
 
 class TemplateParser:

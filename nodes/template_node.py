@@ -53,7 +53,33 @@ class TemplateNode:
                         "default": "A person wearing <color> <clothes>",
                     },
                 ),
-                "allow_missing": ("BOOLEAN", {"default": True}),
+                "allow_missing": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "Allow missing placeholders in the template. Disabling this will raise an error if any placeholders are not found in the prompt.",
+                    },
+                ),
+                "decay": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Strengthens a linear falloff applied to tokens in later chunks, when the prompt is longer than the model's encoding length. 0.0 is lossless and preserves the full prompt weight; higher values fade later tokens toward the decay floor and will weaken them.",
+                    },
+                ),
+                "decay_floor": (
+                    "FLOAT",
+                    {
+                        "default": 0.5,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Lowest multiplier the decay can reach. Only takes effect when decay is above 0.0.",
+                    },
+                ),
             },
         }
 
@@ -67,6 +93,8 @@ class TemplateNode:
         template_type: str,
         template_text: str,
         allow_missing: bool,
+        decay: float,
+        decay_floor: float,
         pipe: Pipe | None = None,
     ) -> tuple[Pipe, str]:
         """
@@ -88,7 +116,14 @@ class TemplateNode:
         new_pipe: Pipe = pipe.clone() if pipe is not None else Pipe()
         # Validate template syntax (find placeholders)
         placeholders = TemplateParser.find_placeholders(template_text)
-        template = Template(template_type, placeholders, template_text, allow_missing)
+        template = Template(
+            template_type,
+            placeholders,
+            template_text,
+            allow_missing,
+            decay,
+            decay_floor,
+        )
 
         if template_type == "positive":
             # Store template in positive prompt

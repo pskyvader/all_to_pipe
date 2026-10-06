@@ -98,7 +98,7 @@ class ExportNode:
         if not isinstance(pipe.negative_template, Template):
             raise ValueError("Pipe.negative_template must exist")
 
-        (model, clip, vae) = ModelProcessor.load_model(pipe.model)
+        model, clip, vae = ModelProcessor.load_model(pipe.model)
 
         # Apply LoRAs if model was loaded and LoRAs are specified
         if pipe.loras:
@@ -112,7 +112,7 @@ class ExportNode:
                 pipe.positive_prompt,
                 pipe.positive_template.allow_missing,
             )
-        positive_conditioning = PromptProcessor.encode_prompt(
+        positive_conditioning, _positive_chunks = PromptProcessor.encode_prompt(
             clip,
             pipe.positive_template.parsed_template,
             pipe.image_config.width,
@@ -121,6 +121,8 @@ class ExportNode:
             pipe.image_config.height,
             crop_w=0,
             crop_h=0,
+            decay=pipe.positive_template.decay,
+            decay_floor=pipe.positive_template.decay_floor,
         )
 
         if pipe.negative_template.parsed_template is None:
@@ -129,7 +131,7 @@ class ExportNode:
                 pipe.negative_prompt,
                 pipe.negative_template.allow_missing,
             )
-        negative_conditioning = PromptProcessor.encode_prompt(
+        negative_conditioning, _negative_chunks = PromptProcessor.encode_prompt(
             clip,
             pipe.negative_template.parsed_template,
             pipe.image_config.width,
@@ -138,6 +140,8 @@ class ExportNode:
             pipe.image_config.height,
             crop_w=0,
             crop_h=0,
+            decay=pipe.negative_template.decay,
+            decay_floor=pipe.negative_template.decay_floor,
         )
 
         # Extract all parameters for direct KSampler connection

@@ -441,8 +441,13 @@ class CompanionLoader:
 
         if not all_terms:
             return current
-        subset_size = random.randint(1, len(all_terms))
-        selected_terms = random.sample(all_terms, min(subset_size, len(all_terms)))
+        subset_size: int = (
+            random.randint(1, len(all_terms) // 2) if len(all_terms) > 1 else 1
+        )
+        selected_terms: list[str] = random.sample(
+            all_terms, min(subset_size, len(all_terms))
+        )
+
         current += ", " + ", ".join(selected_terms)
         logger.info(f"Added {subset_size} terms to {param_name}: {selected_terms}")
         return current

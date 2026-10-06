@@ -9,9 +9,9 @@ class Model:
         self.name: str = name
         self.subfolder: str = subfolder
         self.clip_skip: int = clip_skip
-        self.cached_model: (
-            tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE] | None
-        ) = None
+        # self.cached_model: (
+        #     tuple[comfy.model_patcher.ModelPatcher, comfy.sd.CLIP, comfy.sd.VAE] | None
+        # ) = None
 
 
 class ModelProcessor:
@@ -22,8 +22,8 @@ class ModelProcessor:
         if not model or not model.name:
             raise ValueError("Model name is required and cannot be empty")
 
-        if model.cached_model is not None:
-            return model.cached_model
+        # if model.cached_model is not None:
+        #     return model.cached_model
 
         target_path = os.path.join(model.subfolder, model.name)
         ckpt_path = folder_paths.get_full_path("checkpoints", target_path)
@@ -60,5 +60,5 @@ class ModelProcessor:
         else:
             raise ValueError(f"Invalid clip_skip value: {model.clip_skip}")
 
-        model.cached_model = (output_model, clip, vae)
+        # model.cached_model = (output_model, clip, vae)
         return (output_model, clip, vae)
