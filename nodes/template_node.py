@@ -4,6 +4,7 @@ All-to-Pipe template node.
 Assigns and validates template strings for dynamic prompt parsing.
 """
 
+import json
 from typing import Any
 from ..alltopipe_types import (
     Pipe,
@@ -11,6 +12,7 @@ from ..alltopipe_types import (
     # NegativePrompt,
     Template,
     TemplateParser,
+    PromptProcessor,
 )
 
 # from ..common.utils import deep_copy_pipe
@@ -53,11 +55,11 @@ class TemplateNode:
                         "default": "A person wearing <color> <clothes>",
                     },
                 ),
-                "allow_missing": (
+                "allow_parse_errors": (
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "Allow missing placeholders in the template. Disabling this will raise an error if any placeholders are not found in the prompt.",
+                        "tooltip": "When on, prompt problems are repaired and logged as warnings: missing placeholders become empty text, and malformed emphasis like (:1.1) or unbalanced parentheses are stripped. When off, any of these raises an error instead.",
                     },
                 ),
                 "decay": (
@@ -67,7 +69,7 @@ class TemplateNode:
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
-                        "tooltip": "Strengthens a linear falloff applied to tokens in later chunks, when the prompt is longer than the model's encoding length. 0.0 is lossless and preserves the full prompt weight; higher values fade later tokens toward the decay floor and will weaken them.",
+                        "tooltip": "Strengthens a linear falloff applied to whole chunks, so each successive chunk fades relative to the one before it. Applies only when the prompt exceeds the model's encoding length. 0.0 is lossless and leaves every chunk at full weight; higher values fade later chunks toward the decay floor.",
                     },
                 ),
                 "decay_floor": (
@@ -92,11 +94,11 @@ class TemplateNode:
         self,
         template_type: str,
         template_text: str,
-        allow_missing: bool,
+        allow_parse_errors: bool,
         decay: float,
         decay_floor: float,
         pipe: Pipe | None = None,
-    ) -> tuple[Pipe, str]:
+    ) -> tuple[Pipe, str, str]:
         """
         Execute the node and assign template to pipe.
 
@@ -120,7 +122,7 @@ class TemplateNode:
             template_type,
             placeholders,
             template_text,
-            allow_missing,
+            allow_parse_errors,
             decay,
             decay_floor,
         )
@@ -131,7 +133,7 @@ class TemplateNode:
                 template.parsed_template = TemplateParser.parse_template(
                     template_text,
                     new_pipe.positive_prompt,
-                    allow_missing,
+                    allow_parse_errors,
                 )
             new_pipe.positive_template = template
 
@@ -141,9 +143,63 @@ class TemplateNode:
                 template.parsed_template = TemplateParser.parse_template(
                     template_text,
                     new_pipe.negative_prompt,
-                    allow_missing,
+                    allow_parse_errors,
                 )
 
             new_pipe.negative_template = template
 
-        return (new_pipe, template.parsed_template if template.parsed_template else "")
+        # Chunk breakdown of the template just assigned.
+        chunk_report = self.describe_chunks(new_pipe, template)
+
+        return (
+            new_pipe,
+            template.parsed_template if template.parsed_template else "",
+            chunk_report,
+        )
+
+    @staticmethod
+    def describe_chunks(pipe: Pipe, template: Template) -> str:
+        """Reports how a template splits into chunks and what weights its tokens get.
+
+        One line per chunk, with consecutive equal-weight tokens merged into a run,
+        so a long prompt stays scannable:
+
+            chunk 1/3  tokens 0-74   decay x1
+              (a red cat,1*3); (blurry,0.5); (soft light,1*2)
+
+        Reads the clip that ModelNode already cached on the pipe, so this costs no
+        additional model load and runs no encode pass. Weights come from the
+        template instance, so they match what ExportNode will encode.
+        """
+        if pipe.model is None:
+            return json.dumps({"error": "no model set - connect a ModelNode upstream"})
+
+        cached = getattr(pipe.model, "cached_model", None)
+        clip = cached[1] if cached is not None else None
+        if clip is None:
+            return json.dumps({"error": "model set but clip not loaded yet"})
+
+        if not template.parsed_template:
+            return json.dumps({"error": "no prompt text to chunk"})
+
+        described = PromptProcessor.describe_prompt(
+            clip,
+            template.parsed_template,
+            template.decay,
+            template.decay_floor,
+        )
+
+        lines: list[str] = []
+        total: int = len(described)
+        for index, (position, multiplier, summary) in enumerate(described):
+            count: int = PromptProcessor.count_summary_tokens(summary)
+            end: int = position + count - 1
+            lines.append(
+                f"chunk {index + 1}/{total}  tokens {position}-{end}  "
+                f"({count})  decay x{multiplier:g}"
+            )
+            lines.append(f"  {summary}")
+        return "\n".join(lines)
+
+    RETURN_TYPES: tuple[str, ...] = ("PIPE", "STRING", "STRING")
+    RETURN_NAMES: tuple[str, ...] = ("pipe", "parsed_template", "chunks")

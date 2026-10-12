@@ -120,7 +120,7 @@ class ExportJsonNode:
                 pipe.positive_template.parsed_template = TemplateParser.parse_template(
                     pipe.positive_template.text,
                     pipe.positive_prompt,
-                    pipe.positive_template.allow_missing,
+                    pipe.positive_template.allow_parse_errors,
                 )
             json_output["positive_prompt"] = pipe.positive_template.parsed_template
 
@@ -128,7 +128,7 @@ class ExportJsonNode:
                 pipe.negative_template.parsed_template = TemplateParser.parse_template(
                     pipe.negative_template.text,
                     pipe.negative_prompt,
-                    pipe.negative_template.allow_missing,
+                    pipe.negative_template.allow_parse_errors,
                 )
             json_output["negative_prompt"] = pipe.negative_template.parsed_template
 

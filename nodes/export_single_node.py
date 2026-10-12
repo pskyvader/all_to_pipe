@@ -1,29 +1,22 @@
 """
-All-to-Pipe export node.
+All-to-Pipe export single node.
 
-Resolves Pipe into sampler-ready objects.
+Resolves one element of a Pipe into a value other nodes can consume.
 """
 
 from typing import Any
 from ..alltopipe_types import Pipe
+from ..common.elements import ElementRegistry
 
 
 class ExportSingleNode:
+    """
+    Reads a single element out of a Pipe.
 
-    elements_to_update: dict[str, dict[str, Any]] = {
-        "image": {
-            "attr_name": "image",  # The attribute inside ImageConfig
-            "pipe_key": "image_config",  # The attribute inside Pipe
-        },
-        "latent": {
-            "attr_name": "latent",  # The attribute inside ImageConfig
-            "pipe_key": "image_config",  # The attribute inside Pipe
-        },
-        "seed": {
-            "attr_name": "seed",  # The attribute inside Parameters
-            "pipe_key": "parameters",  # The attribute inside Pipe
-        },
-    }
+    The key is the dotted path of the field, so every field the Pipe holds can
+    be wired on its own: "parameters.steps", "image_config.width",
+    "positive_prompt.age", "loras[0].weight" and so on.
+    """
 
     def __init__(self) -> None:
         """Initialize the export node."""
@@ -31,18 +24,20 @@ class ExportSingleNode:
 
     @staticmethod
     def execute(pipe: Pipe, key: str) -> tuple[Any, ...]:
-        element = ExportSingleNode.elements_to_update[key]
+        """
+        Execute the node and export one element of the pipe.
 
-        export_object = getattr(pipe, element["pipe_key"], None)
-        if export_object is None:
-            raise ValueError(f"Pipe does not have a {element['pipe_key']} attribute")
-        export_value = getattr(export_object, element["attr_name"], None)
-        if export_value is None:
-            raise ValueError(
-                f"attribute {element['attr_name']} in {element['pipe_key']} is None"
-            )
+        Args:
+            pipe: The Pipe to read from
+            key: Dotted path of the element, e.g. "parameters.steps"
 
-        return (export_value,)
+        Returns:
+            Tuple holding the single exported value
+
+        Raises:
+            ValueError: If the key is not a readable element, or it is not set
+        """
+        return (ElementRegistry.read(pipe, key),)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, Any]:
@@ -55,7 +50,15 @@ class ExportSingleNode:
         return {
             "required": {
                 "pipe": ("PIPE",),
-                "key": (list(cls.elements_to_update.keys()),),
+                "key": (
+                    ElementRegistry.export_keys(),
+                    {
+                        "tooltip": "Dotted path of the Pipe field to read, for example "
+                        "parameters.steps. List entries carry their index, for "
+                        "example loras[0].weight. Reading a field that the Pipe "
+                        "has not got raises an error.",
+                    },
+                ),
             }
         }
 

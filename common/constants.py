@@ -31,3 +31,22 @@ MAX_LORA_WEIGHT: Final[float] = 5.0
 
 MIN_CLIP_WEIGHT: Final[float] = -5.0
 MAX_CLIP_WEIGHT: Final[float] = 5.0
+
+MIN_CLIP_SKIP: Final[int] = -24
+MAX_CLIP_SKIP: Final[int] = -1
+
+# Image configuration ranges, matching what the Image Config node offers
+MIN_WIDTH: Final[int] = 64
+MAX_WIDTH: Final[int] = 2048
+MIN_HEIGHT: Final[int] = 64
+MAX_HEIGHT: Final[int] = 2048
+MIN_BATCH_SIZE: Final[int] = 1
+MAX_BATCH_SIZE: Final[int] = 64
+MIN_NOISE: Final[float] = 0.0
+MAX_NOISE: Final[float] = 1.0
+
+# Prompt template ranges, matching what the Template node offers
+MIN_DECAY: Final[float] = 0.0
+MAX_DECAY: Final[float] = 1.0
+MIN_DENOISE: Final[float] = 0.0
+MAX_DENOISE: Final[float] = 1.0

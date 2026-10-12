@@ -1,23 +1,26 @@
 """
-All-to-Pipe pipe node.
+All-to-Pipe update pipe node.
 
-Creates an empty Pipe object as the entry point of the pipeline.
+Writes a single element into a Pipe, leaving everything else as it was.
 """
 
 from typing import Any
 from ..alltopipe_types import Pipe
-from ..alltopipe_types import ImageConfig
+from ..common.elements import ElementRegistry
 
 
 class UpdatePipeNode:
-    elements_to_update: dict[str, dict[str, Any]] = {
-        "image": {
-            "class": ImageConfig,
-            "attr_name": "image",  # The attribute inside ImageConfig
-            "pipe_key": "image_config",  # The attribute inside Pipe
-            "required": True,
-        }
-    }
+    """
+    Writes a single element into a Pipe.
+
+    The key is the dotted path of the field, so every field the Pipe holds can
+    be overridden on its own: "parameters.steps", "image_config.width",
+    "positive_prompt.age", "loras[0].weight" and so on.
+
+    The Pipe that comes in is never touched: the write happens on a copy, and
+    anything the write invalidates (a parsed prompt, a cached model, an
+    encoded latent) is rebuilt or dropped so the Pipe stays self-consistent.
+    """
 
     def __init__(self) -> None:
         """Initialize the pipe node."""
@@ -25,42 +28,48 @@ class UpdatePipeNode:
 
     @staticmethod
     def execute(key: str, value: Any, pipe: Pipe | None = None) -> tuple[Pipe]:
-        new_pipe = pipe.clone() if pipe is not None else Pipe()
+        """
+        Execute the node and set one element of the pipe.
 
-        element = UpdatePipeNode.elements_to_update[key]
-        pipe_attr = element["pipe_key"]
+        Args:
+            key: Dotted path of the element, e.g. "parameters.steps"
+            value: Value to store in the field
+            pipe: Optional Pipe instance (creates new if None)
 
-        updated_instance = getattr(new_pipe, pipe_attr, None)
-        if updated_instance is None:
-            if element["required"]:
-                raise ValueError(
-                    f"Required attribute {element['attr_name']} not found in pipe"
-                )
+        Returns:
+            Tuple containing the modified Pipe instance
 
-            updated_instance = element["class"]()
+        Raises:
+            ValueError: If the key is not a writable element, or it cannot be built
+        """
+        target: Pipe = pipe if pipe is not None else Pipe()
 
-        setattr(updated_instance, element["attr_name"], value)
-
-        if element["attr_name"] == "image":
-            if new_pipe.model is not None and new_pipe.model.cached_model is not None:
-                _, _, vae = new_pipe.model.cached_model
-                updated_instance.latent = {
-                    "samples": vae.encode(updated_instance.image[:, :, :, :3])
-                }
-            else:
-                print("No model found for encoding image")
-
-        setattr(new_pipe, pipe_attr, updated_instance)
-
-        return (new_pipe,)
+        return (ElementRegistry.write(target, key, value),)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, Any]:
+        """
+        Define the input types for this node.
+
+        Returns:
+            Dictionary defining node inputs
+        """
         return {
             "optional": {
                 "pipe": ("PIPE",),
             },
-            "required": {"key": (list(cls.elements_to_update.keys()),), "value": "*"},
+            "required": {
+                "key": (
+                    ElementRegistry.update_keys(),
+                    {
+                        "tooltip": "Dotted path of the Pipe field to write, for "
+                        "example parameters.steps. List entries carry their "
+                        "index, for example loras[0].weight. A field derived "
+                        "from others, such as a parsed template, cannot be set.",
+                    },
+                ),
+                "value": "*",
+            },
         }
 
     RETURN_TYPES: tuple[str, ...] = ("PIPE",)

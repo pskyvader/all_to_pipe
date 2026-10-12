@@ -110,9 +110,9 @@ class ExportNode:
             pipe.positive_template.parsed_template = TemplateParser.parse_template(
                 pipe.positive_template.text,
                 pipe.positive_prompt,
-                pipe.positive_template.allow_missing,
+                pipe.positive_template.allow_parse_errors,
             )
-        positive_conditioning, _positive_chunks = PromptProcessor.encode_prompt(
+        positive_conditioning = PromptProcessor.encode_prompt(
             clip,
             pipe.positive_template.parsed_template,
             pipe.image_config.width,
@@ -129,9 +129,9 @@ class ExportNode:
             pipe.negative_template.parsed_template = TemplateParser.parse_template(
                 pipe.negative_template.text,
                 pipe.negative_prompt,
-                pipe.negative_template.allow_missing,
+                pipe.negative_template.allow_parse_errors,
             )
-        negative_conditioning, _negative_chunks = PromptProcessor.encode_prompt(
+        negative_conditioning = PromptProcessor.encode_prompt(
             clip,
             pipe.negative_template.parsed_template,
             pipe.image_config.width,

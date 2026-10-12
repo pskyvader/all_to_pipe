@@ -8,7 +8,7 @@ from .model import Model, ModelProcessor
 from .lora import LoraSpec, LoraProcessor
 from .parameters import Parameters, ParametersProcessor
 from .image_config import ImageConfig, ImageConfigProcessor
-from .prompts import PositivePrompt, NegativePrompt, PromptProcessor
+from .prompts import PositivePrompt, NegativePrompt, PromptProcessor, ClipLimits
 from .pipe import Pipe
 from .template import Template, TemplateParser
 
@@ -24,6 +24,7 @@ __all__: list[str] = [
     "PositivePrompt",
     "NegativePrompt",
     "PromptProcessor",
+    "ClipLimits",
     "Pipe",
     "Template",
     "TemplateParser",
