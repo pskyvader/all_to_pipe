@@ -10,7 +10,7 @@ import os
 import random
 from torch import Tensor
 
-from custom_nodes.all_to_pipe.common.companion_loader import CompanionFile
+from ..common.companion_loader import CompanionFile
 from ..alltopipe_types import (
     Pipe,
     LoraSpec,
@@ -25,7 +25,6 @@ from ..alltopipe_types import (
 from ..common.constants import MIN_LORA_WEIGHT, MAX_LORA_WEIGHT
 from ..common.file_helpers import discover_loras_in_subfolder
 from ..common.companion_loader import CompanionLoader
-
 
 logger: logging.Logger = logging.getLogger("AllToPipe")
 
@@ -73,7 +72,9 @@ class LoraNode:
             return LoraNode._get_all_loras()
         if subfolder == "":
             return discover_loras_in_subfolder("")
-        return [f"{subfolder}/{name}" for name in discover_loras_in_subfolder(subfolder)]
+        return [
+            f"{subfolder}/{name}" for name in discover_loras_in_subfolder(subfolder)
+        ]
 
     @staticmethod
     def get_lora(
@@ -165,7 +166,7 @@ class LoraNode:
         if not new_pipe.model:
             raise ValueError("Pipe Needs a model before applying loras")
 
-        (model, clip, _) = ModelProcessor.load_model(new_pipe.model)
+        model, clip, _ = ModelProcessor.load_model(new_pipe.model)
 
         lora_spec: LoraSpec | None = None
         if lora_selection == "RANDOM /":
@@ -174,7 +175,9 @@ class LoraNode:
 
             candidate_pools: list[list[str]] = []
             if prefer_same_model_subfolder and new_pipe.model.subfolder is not None:
-                preferred_pool = LoraNode._get_random_lora_pool(new_pipe.model.subfolder)
+                preferred_pool = LoraNode._get_random_lora_pool(
+                    new_pipe.model.subfolder
+                )
                 if preferred_pool:
                     random.shuffle(preferred_pool)
                     candidate_pools.append(preferred_pool)
@@ -253,9 +256,7 @@ class LoraNode:
                 model_spec=new_pipe.model,
                 clip=clip,
             ):
-                logger.warning(
-                    "Architecture mismatch: Skipping %s", lora_spec.name
-                )
+                logger.warning("Architecture mismatch: Skipping %s", lora_spec.name)
                 return (new_pipe,)
 
         companion: CompanionFile | None = (
@@ -310,6 +311,8 @@ class LoraNode:
                     companion.positive_prompt,
                     new_pipe.positive_prompt.lora if append_lora else "",
                     "Positive Prompts",
+                    companion.min_prompts,
+                    companion.max_prompts,
                 )
                 if new_pipe.positive_template:
                     new_pipe.positive_template.parsed_template = None
@@ -320,6 +323,8 @@ class LoraNode:
                     companion.negative_prompt,
                     new_pipe.negative_prompt.lora if append_lora else "",
                     "Negative Prompts",
+                    companion.min_prompts,
+                    companion.max_prompts,
                 )
                 if new_pipe.negative_template:
                     new_pipe.negative_template.parsed_template = None

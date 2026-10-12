@@ -8,7 +8,7 @@ from typing import Any
 import os
 import random
 
-from custom_nodes.all_to_pipe.common.companion_loader import CompanionFile
+from ..common.companion_loader import CompanionFile
 from ..alltopipe_types import (
     Pipe,
     Model,
@@ -131,6 +131,8 @@ class ModelNode:
                     companion.positive_prompt,
                     "",
                     "Positive Prompts",
+                    companion.min_prompts,
+                    companion.max_prompts,
                 )
                 if new_pipe.positive_template:
                     new_pipe.positive_template.parsed_template = None
@@ -142,6 +144,8 @@ class ModelNode:
                     companion.negative_prompt,
                     "",
                     "Negative Prompts",
+                    companion.min_prompts,
+                    companion.max_prompts,
                 )
                 if new_pipe.negative_template:
                     new_pipe.negative_template.parsed_template = None

@@ -52,6 +52,12 @@ class CompanionFile:
     positive_prompt: list[str] = field(default_factory=list)
     """List of positive prompts to randomly select from."""
 
+    min_prompts: int | None = None
+    """Minimum number of prompts to select."""
+
+    max_prompts: int | None = None
+    """Maximum number of prompts to select."""
+
     raw_data: dict[str, Any] = field(default_factory=dict)
     """Raw dictionary data from JSON file."""
 
@@ -281,42 +287,42 @@ class CompanionLoader:
 
         return image_config
 
-    @staticmethod
-    def apply_companion_to_prompts(
-        companion: CompanionFile,
-        positive_prompt: str | None,
-        negative_prompt: str | None,
-    ) -> tuple[str, str]:
-        """
-        Apply companion prompt suggestions to prompts intelligently.
+    # @staticmethod
+    # def apply_companion_to_prompts(
+    #     companion: CompanionFile,
+    #     positive_prompt: str | None,
+    #     negative_prompt: str | None,
+    # ) -> tuple[str, str]:
+    #     """
+    #     Apply companion prompt suggestions to prompts intelligently.
 
-        Can add from lists or comma-separated strings, with random selection.
+    #     Can add from lists or comma-separated strings, with random selection.
 
-        Args:
-            companion: CompanionFile instance (or None)
-            positive_prompt: Current positive prompt
-            negative_prompt: Current negative prompt
+    #     Args:
+    #         companion: CompanionFile instance (or None)
+    #         positive_prompt: Current positive prompt
+    #         negative_prompt: Current negative prompt
 
-        Returns:
-            Tuple of (new_positive_prompt, new_negative_prompt)
-        """
-        if not positive_prompt:
-            positive_prompt = ""
-        if not negative_prompt:
-            negative_prompt = ""
-        # Apply positive prompt suggestions
-        if companion.positive_prompt:
-            positive_prompt = CompanionLoader.apply_text_suggestions(
-                companion.positive_prompt, positive_prompt, "positive_prompt"
-            )
+    #     Returns:
+    #         Tuple of (new_positive_prompt, new_negative_prompt)
+    #     """
+    #     if not positive_prompt:
+    #         positive_prompt = ""
+    #     if not negative_prompt:
+    #         negative_prompt = ""
+    #     # Apply positive prompt suggestions
+    #     if companion.positive_prompt:
+    #         positive_prompt = CompanionLoader.apply_text_suggestions(
+    #             companion.positive_prompt, positive_prompt, "positive_prompt"
+    #         )
 
-        # Apply negative prompt suggestions
-        if companion.negative_prompt:
-            negative_prompt = CompanionLoader.apply_text_suggestions(
-                companion.negative_prompt, negative_prompt, "negative_prompt"
-            )
+    #     # Apply negative prompt suggestions
+    #     if companion.negative_prompt:
+    #         negative_prompt = CompanionLoader.apply_text_suggestions(
+    #             companion.negative_prompt, negative_prompt, "negative_prompt"
+    #         )
 
-        return positive_prompt, negative_prompt
+    #     return positive_prompt, negative_prompt
 
     @staticmethod
     def apply_companion_to_model(
@@ -421,6 +427,8 @@ class CompanionLoader:
         suggestions: list[str],
         current: str | None,
         param_name: str,
+        min_prompts: int | None,
+        max_prompts: int | None,
     ) -> str:
         """
         Apply text suggestions:
@@ -433,20 +441,23 @@ class CompanionLoader:
             return current
         # Flatten suggestions into list of terms
         all_terms: list[str] = []
-        # for suggestion in suggestions:
-        #     terms = [t.strip() for t in suggestion.split(",") if t.strip()]
-        #     all_terms.extend(terms)
+
+        if len(suggestions) == 1:
+            for suggestion in suggestions:
+                terms = [t.strip() for t in suggestion.split(",") if t.strip()]
+                all_terms.extend(terms)
 
         all_terms = suggestions
 
         if not all_terms:
             return current
-        subset_size: int = (
-            random.randint(1, len(all_terms) // 2) if len(all_terms) > 1 else 1
-        )
-        selected_terms: list[str] = random.sample(
-            all_terms, min(subset_size, len(all_terms))
-        )
+        if not min_prompts:
+            min_prompts = 1
+        if not max_prompts:
+            max_prompts = len(all_terms)
+
+        subset_size: int = random.randint(min_prompts, max_prompts)
+        selected_terms: list[str] = random.sample(all_terms, subset_size)
 
         current += ", " + ", ".join(selected_terms)
         logger.info(f"Added {subset_size} terms to {param_name}: {selected_terms}")
@@ -541,6 +552,18 @@ class CompanionLoader:
             )
             companion.positive_prompt = (
                 pos_data if isinstance(pos_data, list) else [pos_data]
+            )
+        # parse min max prompts
+        if "min_prompts" in data:
+            min_prompts_data: Any = data["min_prompts"]
+            companion.min_prompts: int | None = (
+                int(min_prompts_data) if min_prompts_data is not None else None
+            )
+
+        if "max_prompts" in data:
+            max_prompts_data: Any = data["max_prompts"]
+            companion.max_prompts = (
+                int(max_prompts_data) if max_prompts_data is not None else None
             )
 
         # Parse cfg
