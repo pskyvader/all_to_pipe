@@ -451,9 +451,9 @@ class CompanionLoader:
 
         if not all_terms:
             return current
-        if not min_prompts:
+        if not min_prompts or min_prompts < 1:
             min_prompts = 1
-        if not max_prompts:
+        if not max_prompts or max_prompts > len(all_terms):
             max_prompts = len(all_terms)
 
         subset_size: int = random.randint(min_prompts, max_prompts)
